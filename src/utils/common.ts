@@ -1,0 +1,86 @@
+
+export const ALL_CATEGORIE = "全部"
+export const defaultCategories = [
+  ALL_CATEGORIE,
+] as string[]
+
+/**
+ * 格式化日期
+ * @param {string} dateString - ISO格式的日期字符串
+ * @returns {string} 格式化后的日期字符串
+ */
+const formatDate = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const MS_PER_DAY = 86400000
+
+    // 缓存日期组件
+    const dateYear = date.getFullYear()
+    const dateMonth = date.getMonth()
+    const dateDay = date.getDate()
+    const nowYear = now.getFullYear()
+
+    // 如果是今天，显示时间
+    if (diff < MS_PER_DAY && dateDay === now.getDate()) {
+        return `今天 ${date.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        })}`
+    }
+
+    // 如果是昨天
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+    if (dateDay === yesterday.getDate() && dateMonth === yesterday.getMonth() && dateYear === yesterday.getFullYear()) {
+        return "昨天"
+    }
+
+    // 日期格式化选项
+    const options: Intl.DateTimeFormatOptions = {
+        month: "2-digit",
+        day: "2-digit",
+    }
+
+    // 如果不是今年，添加年份
+    if (dateYear !== nowYear) {
+        options.year = "numeric"
+    }
+
+    // 使用 Intl.DateTimeFormat 进行本地化格式化
+    return new Intl.DateTimeFormat("zh-CN", options).format(date).replace(/\//g, "/")
+}
+
+/**
+ * 提取域名
+ * @param {string} url - 完整URL
+ * @returns {string} 提取的域名
+ */
+const extractHostname = (url: string): string => {
+    try {
+        const urlObj = new URL(url)
+        return urlObj.hostname.replace("www.", "")
+    } catch (e) {
+        return url
+    }
+}
+
+
+
+/**
+ * 获取当前浏览器的快捷键设置页面URL
+ * @returns {string} 浏览器对应的快捷键设置页面URL
+ */
+const getBrowserShortcutSettingUrl = (): string => {
+    const ua = navigator.userAgent.toLowerCase();
+    
+    // 根据 UserAgent 判断浏览器类型（按市场占有率从高到低排序）
+    if (ua.includes('edg')) {
+        return 'edge://extensions/shortcuts';  // Microsoft Edge
+    } 
+    // 默认返回 Chrome 的设置页面（大多数 Chromium 浏览器会匹配这个）
+    return 'chrome://extensions/shortcuts';
+};
+
+export { formatDate, extractHostname, getBrowserShortcutSettingUrl }

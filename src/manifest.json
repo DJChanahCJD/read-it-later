@@ -1,16 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Chrome Extension with React & Webpack",
-  "description": "A chrome extension boilerplate built with React 17, Webpack 5, and Webpack Dev Server 4",
+  "name": "稍后阅读 - Read Later",
+  "description": "一个简单的稍后阅读插件，支持右键添加链接和拖拽排序 A simple later reading plugin that supports right-clicking to add links and dragging to sort",
   "options_page": "options.html",
   "background": { "service_worker": "background.bundle.js" },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icon-34.png"
+    "default_icon": {
+      "128": "icon-128.png"
+    },
+    "default_title": "稍后阅读"
   },
-  "chrome_url_overrides": {
-    "newtab": "newtab.html"
-  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "contextMenus",
+    "activeTab"
+  ],
   "icons": {
     "128": "icon-128.png"
   },
@@ -21,11 +27,19 @@
       "css": ["content.styles.css"]
     }
   ],
-  "devtools_page": "devtools.html",
   "web_accessible_resources": [
     {
-      "resources": ["content.styles.css", "icon-128.png", "icon-34.png"],
+      "resources": [
+        "content.styles.css",
+        "icon-128.png"
+      ],
       "matches": []
     }
-  ]
+  ],
+  "commands": {
+    "add-to-readlater": {
+      "description": "添加到稍后阅读",
+      "global": true
+    }
+  }
 }

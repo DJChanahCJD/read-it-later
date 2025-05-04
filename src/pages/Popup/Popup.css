@@ -1,45 +1,220 @@
-.App {
+:root {
+  --primary: #38b2ac;
+  --primary-light: #4fd1ca;
+  --primary-dark: #2c8f8a;
+  --primary-bg: #f7fafa;
+  --text-primary: #2d3748;
+  --text-secondary: #718096;
+  --border: #e2e8f0;
+  --border-radius: 5px;
+  --danger: #e53e3e;
+  --danger-light: #feb2b2;
+  --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --card-hover-shadow: 0 4px 9px rgba(0, 0, 0, 0.08);
+  --transition: all 0.2s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 360px;
+  max-height: 480px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--primary-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.search-container {
+  padding: 6px 12px 0px 12px;
+  background-color: var(--primary-bg);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  transition: var(--transition);
+  box-shadow: var(--card-shadow);
+  flex: 1;
+}
+
+.search-box:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(56, 178, 172, 0.15);
+}
+
+.search-icon {
   position: absolute;
-  top: 0px;
-  bottom: 0px;
-  left: 0px;
-  right: 0px;
+  left: 10px;
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 6px 12px 6px 32px;
+  border: none;
+  font-size: 14px;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.search-box input:focus {
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--text-secondary);
+}
+
+.add-btn,
+.setting-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--border-radius);
+  background: var(--primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: var(--transition);
+  flex-shrink: 0;
+  box-shadow: var(--card-shadow);
+}
+
+.add-btn:hover,
+.setting-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--card-hover-shadow);
+}
+
+.add-btn:active,
+.setting-btn:active {
+  transform: translateY(0);
+}
+
+.add-btn i,
+.setting-btn i {
+  font-size: 18px;
+}
+
+/* 分类标签样式 */
+.categories-container {
+  display: flex;
+  overflow-x: auto;
+  padding: 8px 12px 4px;
+  gap: 8px;
+  background-color: var(--primary-bg);
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.categories-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.category-tab {
+  padding: 4px 10px;
+  background: white;
+  border-radius: var(--border-radius);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  color: var(--text-secondary);
+}
+
+.category-tab:hover {
+  border-color: var(--primary-light);
+  color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.category-tab.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  font-weight: 500;
+}
+
+.card-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px 12px 8px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-light) transparent;
+  gap: 6px;
+  background-color: var(--primary-bg);
+}
+
+.card-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.card-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-list::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: var(--border-radius);
+}
+
+.empty-state {
   text-align: center;
-  height: 100%;
-  padding: 10px;
-  background-color: #282c34;
-}
-
-.App-logo {
-  height: 30vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  height: 100%;
+  padding: 32px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 6px;
 }
 
-.App-link {
-  color: #61dafb;
+.empty-state i {
+  font-size: 20px;
+  color: var(--primary);
+  margin-bottom: 4px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.dragging {
+  opacity: 0.7;
+  background: var(--primary-bg);
+  border: 1px dashed var(--primary);
+  box-shadow: none;
+}
+
+.drag-over {
+  border: 1px dashed var(--primary);
 }

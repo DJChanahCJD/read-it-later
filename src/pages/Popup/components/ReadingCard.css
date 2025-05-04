@@ -1,0 +1,227 @@
+.card {
+    background: white;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    height: 64px;
+    min-height: 64px;
+    flex-shrink: 0;
+  }
+  
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-hover-shadow);
+  }
+  
+  .card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--primary);
+    opacity: 0;
+    transition: var(--transition);
+  }
+  
+  .card:hover::before {
+    opacity: 1;
+  }
+  
+  .card-content {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+  }
+  
+  .card-title {
+    font-size: 13px;
+    font-weight: 550;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: var(--transition);
+  }
+  
+  .card:hover .card-title {
+    color: var(--primary-dark);
+  }
+  
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  
+  .card-url {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .card-date {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    gap: 4px;
+  }
+  
+  .card-category {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    gap: 4px;
+    color: var(--primary-dark);
+    font-weight: 500;
+  }
+  
+  .card-date i,
+  .card-url i,
+  .card-category i {
+    font-size: 12px;
+  }
+  
+  .card-actions {
+    display: flex;
+    padding-right: 8px;
+  }
+  
+  .edit-btn,
+  .category-btn {
+    opacity: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--border-radius);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    flex-shrink: 0;
+    margin-right: 4px;
+  }
+  
+  .card:hover .edit-btn,
+  .card:hover .category-btn {
+    opacity: 0.8;
+  }
+  
+  .edit-btn:hover,
+  .category-btn:hover {
+    background: rgba(56, 178, 172, 0.1);
+    color: var(--primary-dark);
+    opacity: 1;
+  }
+  
+  .edit-btn:active,
+  .category-btn:active {
+    background: rgba(56, 178, 172, 0.2);
+    transform: scale(0.95);
+  }
+  
+  .edit-btn i,
+  .category-btn i {
+    font-size: 16px;
+  }
+  
+  .delete-btn {
+    opacity: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--border-radius);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+  
+  .card:hover .delete-btn {
+    opacity: 0.8;
+  }
+  
+  .delete-btn:hover {
+    background: rgba(56, 178, 172, 0.1);
+    color: var(--primary-dark);
+    opacity: 1;
+  }
+  
+  .delete-btn:active {
+    background: rgba(56, 178, 172, 0.2);
+    transform: scale(0.95);
+  }
+  
+  .delete-btn i {
+    font-size: 16px;
+  }
+  
+  .edit-title-input {
+    width: 100%;
+    padding: 2px 4px;
+    border: 1px solid var(--primary);
+    border-radius: var(--border-radius);
+    font-size: 13px;
+    font-weight: 550;
+    color: var(--text-primary);
+    background: white;
+    outline: none;
+  }
+  
+  .edit-title-input:focus {
+    box-shadow: 0 0 0 2px rgba(56, 178, 172, 0.2);
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 20px 12px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .empty-state i {
+    font-size: 20px;
+    color: var(--primary);
+    margin-bottom: 4px;
+  }
+  
+  .dragging {
+    opacity: 0.7;
+    background: var(--primary-bg);
+    border: 1px dashed var(--primary);
+    box-shadow: none;
+  }
+  
+  .drag-over {
+    border: 1px dashed var(--primary);
+  }
+  
