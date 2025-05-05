@@ -74,6 +74,10 @@
     align-items: center;
     gap: 4px;
   }
+
+  .card-url .ri-link:hover {
+    color: var(--primary);
+  }
   
   .card-date {
     display: flex;

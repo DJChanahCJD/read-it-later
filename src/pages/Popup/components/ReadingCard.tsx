@@ -45,6 +45,7 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
   const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const categoryMenuRef = useRef<HTMLDivElement>(null)
+  const [copyText, setCopyText] = useState<string>('')
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -99,6 +100,25 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
     }
   }
 
+  /**
+   * 处理复制链接
+   * @param {React.MouseEvent} e - 点击事件对象
+   * @description 复制链接到剪贴板并临时显示提示信息
+   */
+const handleCopyLink = (e: React.MouseEvent) => {
+  e.stopPropagation()
+  e.preventDefault()
+  navigator.clipboard.writeText(item.url)
+    .then(() => {
+      setCopyText('复制成功！')
+      setTimeout(() => setCopyText(''), 1500)
+    })
+    .catch(() => {
+      setCopyText('复制失败！')
+      setTimeout(() => setCopyText(''), 1500)
+    })
+}
+
   return (
     <div
       className="card"
@@ -127,9 +147,9 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
           )}
         </div>
         <div className="card-meta">
-          <div className="card-url" title={item.url}>
-            <i className="ri-link"></i>
-            {extractHostname(item.url)}
+          <div className="card-url">
+            <i className="ri-link" onClick={handleCopyLink} title={`点击复制链接`}></i>
+            <span title={item.url}>{copyText || extractHostname(item.url)}</span>
           </div>
           <div className="card-date" title={item.addedAt}>
             <i className="ri-time-line"></i>
