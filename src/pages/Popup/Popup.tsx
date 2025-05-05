@@ -6,7 +6,8 @@ import "./Popup.css"
 import "remixicon/fonts/remixicon.css"
 import { ReadingCard } from "./components/ReadingCard"
 import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate } from "../../utils/common"
-import { ReadingItem } from "../../utils/types"
+import { ReadingItem } from "../../utils/typing"
+import { storage } from "../../utils/storage"
 // 默认分类列表
 
 /**
@@ -64,7 +65,7 @@ const Popup: React.FC = () => {
       newCategories.splice(dropIndex, 0, movedCategory);
   
       setCategories(newCategories);
-      chrome.storage.local.set({ readLaterCategories: newCategories });
+      storage.set({ readLaterCategories: newCategories });
     } 
     // 如果是 ReadingCard 拖拽到分类
     else if (draggedIndex !== null) {
@@ -80,7 +81,7 @@ const Popup: React.FC = () => {
 
   useEffect(() => {
     // 加载保存的链接和分类
-    chrome.storage.local.get(["readLaterLinks", "readLaterCategories"], (result: any) => {
+    storage.get(["readLaterLinks", "readLaterCategories"], (result: any) => {
       const links = result.readLaterLinks || []
 
       // 确保所有链接都有分类字段
@@ -117,7 +118,7 @@ const Popup: React.FC = () => {
     }
 
     // 应用分类过滤
-    if (category !== "全部") {
+    if (category !== ALL_CATEGORIE) {
       filtered = filtered.filter((item) => item.category === category)
     }
 
@@ -147,7 +148,7 @@ const Popup: React.FC = () => {
    */
   const handleDelete = (url: string) => {
     const newList = readingList.filter((item) => item.url !== url)
-    chrome.storage.local.set({ readLaterLinks: newList })
+    storage.set({ readLaterLinks: newList })
     setReadingList(newList)
     applyFilters(newList, searchTerm, selectedCategory)
 
@@ -171,7 +172,7 @@ const Popup: React.FC = () => {
    */
   const handleEdit = (url: string, newTitle: string) => {
     const newList = readingList.map((item) => (item.url === url ? { ...item, title: newTitle } : item))
-    chrome.storage.local.set({ readLaterLinks: newList })
+    storage.set({ readLaterLinks: newList })
     setReadingList(newList)
     applyFilters(newList, searchTerm, selectedCategory)
   }
@@ -183,7 +184,7 @@ const Popup: React.FC = () => {
    */
   const handleChangeCategory = (url: string, category: string) => {
     const newList = readingList.map((item) => (item.url === url ? { ...item, category } : item))
-    chrome.storage.local.set({ readLaterLinks: newList })
+    storage.set({ readLaterLinks: newList })
     setReadingList(newList)
     applyFilters(newList, searchTerm, selectedCategory)
   }
@@ -208,7 +209,7 @@ const Popup: React.FC = () => {
         }
 
         const newList = [newItem, ...readingList]
-        chrome.storage.local.set({ readLaterLinks: newList })
+        storage.set({ readLaterLinks: newList })
         setReadingList(newList)
         applyFilters(newList, searchTerm, selectedCategory)
 
@@ -222,7 +223,7 @@ const Popup: React.FC = () => {
         // 不管是否存在，将当前页面的分类更改为选中的分类
         if (readingList.some((link) => link.url === url && link.category !== selectedCategory)) {
           const newList = readingList.map((item) => (item.url === url? {...item, category: selectedCategory } : item))
-          chrome.storage.local.set({ readLaterLinks: newList })
+          storage.set({ readLaterLinks: newList })
           setReadingList(newList)
           applyFilters(newList, searchTerm, selectedCategory)
         }
@@ -248,21 +249,34 @@ const Popup: React.FC = () => {
   }
 
   const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
-    e.preventDefault()
-    e.currentTarget.classList.remove("drag-over")
-
-    if (draggedIndex === null || draggedIndex === dropIndex) return
-
-    // 更新数组顺序
-    const newList = [...readingList]
-    const [movedItem] = newList.splice(draggedIndex, 1)
-    newList.splice(dropIndex, 0, movedItem)
-
-    // 保存新顺序到存储
-    chrome.storage.local.set({ readLaterLinks: newList })
-    setReadingList(newList)
-    applyFilters(newList, searchTerm, selectedCategory)
-  }
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
+  
+    if (draggedIndex === null || draggedIndex === dropIndex) return;
+  
+    // 1. 先找到过滤列表中拖拽项对应的原列表项
+    const draggedItem = filteredList[draggedIndex];
+    const originalIndex = readingList.findIndex(item => item.url === draggedItem.url);
+    
+    // 2. 找到放置位置对应的原列表索引
+    let targetOriginalIndex = 0;
+    if (dropIndex < filteredList.length) {
+      const targetItem = filteredList[dropIndex];
+      targetOriginalIndex = readingList.findIndex(item => item.url === targetItem.url);
+    } else {
+      targetOriginalIndex = readingList.length;
+    }
+  
+    // 3. 在原列表上执行移动操作
+    const newList = [...readingList];
+    const [movedItem] = newList.splice(originalIndex, 1);
+    newList.splice(targetOriginalIndex, 0, movedItem);
+  
+    // 4. 更新状态和存储
+    storage.set({ readLaterLinks: newList });
+    setReadingList(newList);
+    applyFilters(newList, searchTerm, selectedCategory);
+  };
 
   const handleDragEnd = (e: DragEvent<HTMLDivElement>) => {
     e.currentTarget.classList.remove("dragging")

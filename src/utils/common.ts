@@ -7,6 +7,18 @@ export const MAX_CATEGORIE_LENGTH = 16
 export const TEST_LINKS_LENGTH = 1
 export const EMPTY_STATE_TEXT = "空空如也..."
 
+
+export const MESSAGE_TYPE = {
+    UPDATE_CONTEXT_MENU: 'updateContextMenu',
+    SAVE_READING_PROGRESS: 'saveReadingProgress',
+    RESTORE_READING_PROGRESS: 'restoreReadingProgress'
+}
+export const CONTEXT_MENU_ACTION = {
+    ADD: 'add',
+    REMOVE: 'remove'
+}
+
+
 /**
  * 格式化日期
  * @param {string} dateString - ISO格式的日期字符串

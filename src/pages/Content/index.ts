@@ -1,4 +1,12 @@
-// ... existing code ...
+import { KEYS, storage } from "../../utils/storage";
+
+console.log('content.ts loaded!!!!!!!!!!!!!!!!!!!!');
+// 记录阅读进度的DOM路径和位置信息
+let lastReadingPosition = {
+  domPath: '',
+  textContent: '',
+  scrollTop: 0
+};
 
 // 监听来自 background 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -7,10 +15,145 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (selectedText) {
       highlightAndScrollToText(selectedText);
     }
+    sendResponse({ success: true });
+  } else if (request.type === 'saveReadingProgress') {
+    console.log('saveReadingProgress');
+    saveCurrentReadingPosition();
+    sendResponse({ success: true });
+  } else if (request.type === 'restoreReadingProgress') {
+    console.log('restoreReadingProgress');
+    restoreReadingPosition();
+    sendResponse({ success: true });
+  }
+  return true;
+});
+
+// 监听页面滚动事件
+let scrollTimer: number | null = null;
+window.addEventListener('scroll', () => {
+  if (scrollTimer) {
+    clearTimeout(scrollTimer);
+  }
+  scrollTimer = window.setTimeout(() => {
+    saveCurrentReadingPosition();
+  }, 300);
+});
+
+// 监听DOM变化
+const observer = new MutationObserver(() => {
+  if (lastReadingPosition.domPath) {
+    saveCurrentReadingPosition();
   }
 });
 
-// 高亮并滚动到指定文本
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+/**
+ * 获取元素的DOM路径
+ * @param element 目标元素
+ * @returns DOM路径字符串
+ */
+function getDomPath(element: Element): string {
+  const path: string[] = [];
+  let currentElement = element;
+
+  while (currentElement && currentElement.nodeType === Node.ELEMENT_NODE) {
+    let selector = currentElement.nodeName.toLowerCase();
+    if (currentElement.id) {
+      selector += '#' + currentElement.id;
+    } else {
+      let sibling = currentElement;
+      let siblingIndex = 1;
+
+      while (sibling.previousElementSibling) {
+        sibling = sibling.previousElementSibling;
+        if (sibling.nodeName === currentElement.nodeName) {
+          siblingIndex++;
+        }
+      }
+      selector += `:nth-of-type(${siblingIndex})`;
+    }
+    path.unshift(selector);
+    currentElement = currentElement.parentElement as Element;
+  }
+
+  return path.join(' > ');
+}
+
+/**
+ * 保存当前阅读位置
+ */
+function saveCurrentReadingPosition() {
+  // 获取当前视窗中心点的元素
+  const centerY = window.innerHeight / 2;
+  const element = document.elementFromPoint(window.innerWidth / 2, centerY) as Element;
+
+  if (element) {
+    // 获取元素的DOM路径
+    const domPath = getDomPath(element);
+    // 获取周围文本内容作为上下文
+    const textContent = element.textContent?.trim().substring(0, 100) || '';
+
+    lastReadingPosition = {
+      domPath,
+      textContent,
+      scrollTop: window.scrollY
+    };
+
+    // 保存到storage
+    storage.set({
+      readingProgress: {
+        url: window.location.href,
+        position: lastReadingPosition
+      }
+    });
+
+    console.log('阅读位置已保存:', lastReadingPosition);
+  }
+}
+
+/**
+ * 恢复阅读位置
+ */
+function restoreReadingPosition() {
+  storage.get([ KEYS.readingProgress ], (result) => {
+    const progress = result.readingProgress;
+    if (progress && progress.url === window.location.href) {
+      try {
+        // 尝试通过DOM路径找到元素
+        const element = document.querySelector(progress.position.domPath);
+        if (element) {
+          // 验证文本内容相似度
+          const currentText = element.textContent?.trim().substring(0, 100) || '';
+          if (currentText.includes(progress.position.textContent) ||
+              progress.position.textContent.includes(currentText)) {
+            element.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+            console.log('阅读位置已恢复:', progress.position);
+            return;
+          }
+        }
+        // 如果DOM路径失效，回退到使用scrollTop
+        window.scrollTo({
+          top: progress.position.scrollTop,
+          behavior: 'smooth'
+        });
+      } catch (error) {
+        console.error('恢复阅读位置失败:', error);
+      }
+    }
+  });
+}
+
+/**
+ * 高亮并滚动到指定文本
+ * @param text 要高亮的文本
+ */
 function highlightAndScrollToText(text: string) {
   const bodyText = document.body.innerText;
   const position = bodyText.indexOf(text);

@@ -5,10 +5,8 @@ import { useState, useEffect } from "react"
 import "./Options.css"
 import "remixicon/fonts/remixicon.css"
 import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate, getBrowserShortcutSettingUrl, MAX_CATEGORIE_LENGTH, TEST_LINKS_LENGTH } from "../../utils/common"
-import { ReadingItem } from "../../utils/types"
-
-// 声明 chrome 变量
-declare const chrome: any
+import { ReadingItem } from "../../utils/typing"
+import { KEYS, storage } from "../../utils/storage"
 
 const Options: React.FC = () => {
   // 链接列表状态
@@ -32,19 +30,22 @@ const Options: React.FC = () => {
   }, [])
 
   const loadData = () => {
-    chrome.storage.local.get(["readLaterLinks", "readLaterCategories"], (result: any) => {
+    storage.get([KEYS.readLaterLinks, KEYS.readLaterCategories], (result: any) => {
+      // 获取阅读列表，如果为空则使用空数组
       const links = result.readLaterLinks || []
-
-
+  
+      // 更新阅读列表状态
       setReadingList(links)
+      // 应用过滤器（搜索词和分类）
       applyFilters(links, searchTerm, selectedCategory)
-
-      // 加载保存的分类
+  
+      // 处理分类数据
       if (result.readLaterCategories) {
         setCategories(result.readLaterCategories)
       } else {
+        // 如果没有保存的分类，使用默认分类
         setCategories(defaultCategories)
-        chrome.storage.local.set({ readLaterCategories: defaultCategories })
+        storage.set({ readLaterCategories: defaultCategories })
       }
     })
   }
@@ -154,7 +155,7 @@ const Options: React.FC = () => {
 
     const updatedCategories = [...categories, newCategory]
     setCategories(updatedCategories)
-    chrome.storage.local.set({ readLaterCategories: updatedCategories })
+    storage.set({ readLaterCategories: updatedCategories })
     setNewCategoryName("")
   }
 
@@ -200,7 +201,7 @@ const Options: React.FC = () => {
     setReadingList(updatedLinks)
     applyFilters(updatedLinks, searchTerm, selectedCategory)
 
-    chrome.storage.local.set({
+    storage.set({
       readLaterCategories: updatedCategories,
       readLaterLinks: updatedLinks,
     })
@@ -217,7 +218,7 @@ const Options: React.FC = () => {
     if (window.confirm(`确定要删除「${ categoryToDelete }」吗？该分类下的链接将移至「全部」。`)) {
       // 将该分类下的链接移至"默认"分类
       const updatedLinks = readingList.map((link) =>
-        link.category === categoryToDelete ? { ...link, category: "全部"} : link,
+        link.category === categoryToDelete ? { ...link, category: ALL_CATEGORIE} : link,
       )
 
       const updatedCategories = categories.filter((c) => c !== categoryId)
@@ -226,7 +227,7 @@ const Options: React.FC = () => {
       setReadingList(updatedLinks)
       applyFilters(updatedLinks, searchTerm, selectedCategory)
 
-      chrome.storage.local.set({
+      storage.set({
         readLaterCategories: updatedCategories,
         readLaterLinks: updatedLinks,
       })
@@ -270,7 +271,7 @@ const Options: React.FC = () => {
     // 使用自定义对话框或状态管理来替代原生confirm
     if (window.confirm(`确定要删除选中的 ${selectedItems.length} 个链接吗？`)) {
       const updatedList = readingList.filter((item) => !selectedItems.includes(item.url))
-      chrome.storage.local.set({ readLaterLinks: updatedList })
+      storage.set({ readLaterLinks: updatedList })
       setReadingList(updatedList)
       applyFilters(updatedList, searchTerm, selectedCategory)
     }
@@ -303,7 +304,7 @@ const Options: React.FC = () => {
       selectedItems.includes(item.url) ? { ...item, category: targetCategory } : item,
     )
 
-    chrome.storage.local.set({ readLaterLinks: updatedList })
+    storage.set({ readLaterLinks: updatedList })
     setReadingList(updatedList)
     applyFilters(updatedList, searchTerm, selectedCategory)
     setIsMoveDropdownOpen(false) // 选择后关闭下拉菜单
@@ -312,7 +313,7 @@ const Options: React.FC = () => {
   // 删除单个链接
   const handleDeleteLink = (url: string) => {
     const updatedList = readingList.filter((item) => item.url !== url)
-    chrome.storage.local.set({ readLaterLinks: updatedList })
+    storage.set({ readLaterLinks: updatedList })
     setReadingList(updatedList)
     applyFilters(updatedList, searchTerm, selectedCategory)
   }
@@ -343,7 +344,7 @@ const Options: React.FC = () => {
     });
   
     const updatedList = [...testLinks, ...readingList]
-    chrome.storage.local.set({ readLaterLinks: updatedList })
+    storage.set({ readLaterLinks: updatedList })
     setReadingList(updatedList)
     applyFilters(updatedList, searchTerm, selectedCategory)
   }

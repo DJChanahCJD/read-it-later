@@ -3,11 +3,8 @@
 import React from "react"
 import { useState, useEffect, useRef, type DragEvent } from "react"
 import "./ReadingCard.css"
-import { ReadingItem } from "../../../utils/types"
+import { ReadingItem } from "../../../utils/typing"
 import { ALL_CATEGORIE } from "../../../utils/common"
-
-
-
 
 interface ReadingCardProps {
   item: ReadingItem

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import StorageService from '../utils/StorageService';
-import { ReadingItem } from '../utils/types';
+import StorageService from '../utils/storage';
+import { ReadingItem } from '../utils/typing';
 import { ALL_CATEGORIE } from '../utils/common';
 
 /**
