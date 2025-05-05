@@ -1,14 +1,14 @@
 const ALL_CATEGORIE = "全部"
 const ADD_TO_READLATER_MENU_ID = "add-to-readlater"
 let ADD_TO_TEXT = "添加到稍后阅读"
-let REMOVE_FROM_TEXT = "从稍后阅读中移除"
+let REMOVE_FROM_TEXT = "取消添加"
 
 // 获取当前快捷键设置
 chrome.commands.getAll((commands) => {
   const addCommand = commands.find(cmd => cmd.name === "add-to-readlater")
   if (addCommand?.shortcut) {
-    ADD_TO_TEXT = `添加到稍后阅读 (${addCommand.shortcut})`
-    REMOVE_FROM_TEXT = `从稍后阅读中移除 (${addCommand.shortcut})`
+    ADD_TO_TEXT += ` (${addCommand.shortcut})`
+    REMOVE_FROM_TEXT += ` (${addCommand.shortcut})`
     // 更新现有菜单
     chrome.contextMenus.update(ADD_TO_READLATER_MENU_ID, { title: ADD_TO_TEXT })
   }

@@ -4,7 +4,7 @@ import React from "react"
 import { useState, useEffect } from "react"
 import "./Options.css"
 import "remixicon/fonts/remixicon.css"
-import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate, getBrowserShortcutSettingUrl } from "../../utils/common"
+import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate, getBrowserShortcutSettingUrl, MAX_CATEGORIE_LENGTH, TEST_LINKS_LENGTH } from "../../utils/common"
 import { ReadingItem } from "../../utils/types"
 
 // 声明 chrome 变量
@@ -135,6 +135,12 @@ const Options: React.FC = () => {
   // 添加新分类
   const handleAddCategory = () => {
     if (newCategoryName.trim() === "") return
+  
+    // 检查分类名称长度
+    if (newCategoryName.trim().length > MAX_CATEGORIE_LENGTH) {
+      alert(`分类名称不能超过${MAX_CATEGORIE_LENGTH}个字符`);
+      return;
+    }
 
     const c = newCategoryName.trim()
     // 检查是否已存在同名分类
@@ -166,7 +172,13 @@ const Options: React.FC = () => {
       setEditCategoryName("")
       return
     }
-
+  
+    // 检查分类名称长度
+    if (editCategoryName.trim().length > MAX_CATEGORIE_LENGTH) {
+      alert(`分类名称不能超过${MAX_CATEGORIE_LENGTH}个字符`);
+      return;
+    }
+  
     // 检查是否已存在同名分类
     if (categories.some((c) => c === editCategoryName.trim())) {
       alert("分类名称已存在")
@@ -307,9 +319,11 @@ const Options: React.FC = () => {
 
   /**
    * 添加测试数据
-   * 生成20个测试链接并添加到列表中
+   * 生成测试链接并添加到列表中
    */
-  const handleAddTestData = () => {
+  const handleAddTestData = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const size = TEST_LINKS_LENGTH // 默认生成1个测试链接
+    
     // 生成过去30天内的随机时间
     const getRandomDate = () => {
       const now = new Date();
@@ -317,8 +331,8 @@ const Options: React.FC = () => {
       const randomTime = thirtyDaysAgo.getTime() + Math.random() * (now.getTime() - thirtyDaysAgo.getTime());
       return new Date(randomTime).toISOString();
     };
-
-    const testLinks = Array.from({ length: 20 }, (_, index) => {
+  
+    const testLinks = Array.from({ length: size }, (_, index) => {
       const randomDate = getRandomDate();
       return {
         url: `https://example.com/${randomDate}`,
@@ -327,7 +341,7 @@ const Options: React.FC = () => {
         category: ALL_CATEGORIE,
       };
     });
-
+  
     const updatedList = [...testLinks, ...readingList]
     chrome.storage.local.set({ readLaterLinks: updatedList })
     setReadingList(updatedList)

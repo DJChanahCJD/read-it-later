@@ -3,6 +3,9 @@ export const ALL_CATEGORIE = "全部"
 export const defaultCategories = [
   ALL_CATEGORIE,
 ] as string[]
+export const MAX_CATEGORIE_LENGTH = 16
+export const TEST_LINKS_LENGTH = 1
+export const EMPTY_STATE_TEXT = "空空如也..."
 
 /**
  * 格式化日期
@@ -53,16 +56,24 @@ const formatDate = (dateString: string): string => {
 }
 
 /**
- * 提取域名
- * @param {string} url - 完整URL
- * @returns {string} 提取的域名
+ * 提取域名或文件路径
+ * @param {string} url - 完整URL或文件路径
+ * @returns {string} 提取的域名或文件路径
  */
 const extractHostname = (url: string): string => {
     try {
-        const urlObj = new URL(url)
-        return urlObj.hostname.replace("www.", "")
+        // 处理file://协议
+        if (url.startsWith('file:///')) {
+            // 移除file:///前缀并保留路径部分
+            return url.substring(8); // Windows路径会保留完整格式如C:/path/to/file
+        }
+        
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.replace("www.", "");
+        return hostname.length > 0 ? hostname : url;
     } catch (e) {
-        return url
+        // 如果不是有效URL，返回原始输入
+        return url;
     }
 }
 

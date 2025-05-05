@@ -23,6 +23,60 @@ const Popup: React.FC = () => {
 
   // 拖拽相关状态
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
+
+  // 分类拖拽开始
+  const handleCategoryDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
+    if (categories[index] === ALL_CATEGORIE) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedCategoryIndex(index);
+    e.currentTarget.classList.add("dragging"); // 添加拖拽样式
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  // 分类拖拽经过
+  const handleCategoryDragOver = (e: DragEvent<HTMLDivElement>, index: number) => {
+    e.preventDefault();
+    // 如果是分类排序拖拽，且目标是"全部"分类，则不允许
+    if (draggedCategoryIndex !== null && categories[index] === ALL_CATEGORIE) {
+      return;
+    }
+    e.currentTarget.classList.add("drag-over");
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  // 分类拖拽放置
+  const handleCategoryDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("drag-over");
+  
+    // 如果是分类排序的拖拽
+    if (draggedCategoryIndex !== null) {
+      // 不允许移动"全部"分类或将其他分类移动到"全部"分类的位置
+      if (draggedCategoryIndex === 0 || dropIndex === 0) {
+        return;
+      }
+  
+      const newCategories = [...categories];
+      const [movedCategory] = newCategories.splice(draggedCategoryIndex, 1);
+      newCategories.splice(dropIndex, 0, movedCategory);
+  
+      setCategories(newCategories);
+      chrome.storage.local.set({ readLaterCategories: newCategories });
+    } 
+    // 如果是 ReadingCard 拖拽到分类
+    else if (draggedIndex !== null) {
+      const draggedItem = filteredList[draggedIndex];
+      const targetCategory = categories[dropIndex];
+      
+      // 更新阅读项的分类
+      handleChangeCategory(draggedItem.url, targetCategory);
+    }
+    
+    setDraggedCategoryIndex(null);
+  };
 
   useEffect(() => {
     // 加载保存的链接和分类
@@ -165,16 +219,12 @@ const Popup: React.FC = () => {
           action: "add",
         })
       } else {
-        // 1. 如果分类不同，提示用户选择是否移至新分类
+        // 不管是否存在，将当前页面的分类更改为选中的分类
         if (readingList.some((link) => link.url === url && link.category !== selectedCategory)) {
-          const existingItem = readingList.find(link => link.url === url)
-          const moveToNewCategory = window.confirm(`该链接已存在于「${existingItem?.category}」，是否移至「${selectedCategory}」？`)
-          if (moveToNewCategory) {
-            const newList = readingList.map((item) => (item.url === url? {...item, category: selectedCategory } : item))
-            chrome.storage.local.set({ readLaterLinks: newList })
-            setReadingList(newList)
-            applyFilters(newList, searchTerm, selectedCategory)
-          }
+          const newList = readingList.map((item) => (item.url === url? {...item, category: selectedCategory } : item))
+          chrome.storage.local.set({ readLaterLinks: newList })
+          setReadingList(newList)
+          applyFilters(newList, searchTerm, selectedCategory)
         }
       }
     })
@@ -224,6 +274,22 @@ const Popup: React.FC = () => {
     })
   }
 
+  // 分类拖拽结束
+  const handleCategoryDragEnd = (e: DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove("dragging");
+    setDraggedCategoryIndex(null);
+    
+    // 清除所有分类选项卡的拖拽状态
+    document.querySelectorAll(".category-tab").forEach((tab) => {
+      (tab as HTMLElement).classList.remove("drag-over");
+    });
+  };
+
+  // 分类拖拽离开
+  const handleCategoryDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.currentTarget.classList.remove("drag-over");
+  };
+
   return (
     <div className="container">
       <div className="search-container">
@@ -245,24 +311,34 @@ const Popup: React.FC = () => {
         </button>
       </div>
 
-      {/* 分类选项卡，只有设置了其他分类后显示 */}
-      {categories.length > 1 ? <div className="categories-container">
-        {categories.map((category) => (
-          <div
-            key={category}
-            className={`category-tab ${selectedCategory === category ? "active" : ""}`}
-            onClick={() => handleCategorySelect(category)}
-          >
-            {category}
-          </div>
-        ))}
-      </div> : null}
+      {/* 分类选项卡 */}
+      {categories.length > 1 && (
+        <div className="categories-container">
+          {categories.map((category, index) => (
+            <div
+              key={category}
+              className={`category-tab ${selectedCategory === category ? "active" : ""} ${
+                category === ALL_CATEGORIE ? "no-drag" : ""
+              }`}
+              onClick={() => handleCategorySelect(category)}
+              draggable={category !== ALL_CATEGORIE}
+              onDragStart={(e) => handleCategoryDragStart(e, index)}
+              onDragOver={(e) => handleCategoryDragOver(e, index)}
+              onDragLeave={handleCategoryDragLeave}
+              onDrop={(e) => handleCategoryDrop(e, index)}
+              onDragEnd={handleCategoryDragEnd}
+            >
+              {category}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card-list">
         {filteredList.length === 0 ? (
           <div className="empty-state">
             <i className="ri-inbox-line"></i>
-            <span>{selectedCategory === "全部" ? "暂无保存的链接" : `${selectedCategory}分类中暂无链接`}</span>
+            <span>空空如也...</span>
           </div>
         ) : (
           filteredList.map((item, index) => (
