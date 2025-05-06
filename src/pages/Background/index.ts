@@ -1,5 +1,5 @@
 import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE } from "../../utils/common"
-import { KEYS, redisStorage } from "../../utils/storage"
+import { KEYS } from "../../utils/storage"
 import { ReadingItem, Tab } from "../../utils/typing"
 
 
@@ -44,8 +44,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const title = info.linkUrl ? info.selectionText || url : tab?.title
     handleAddOrRemoveLink(url, title, tab)
   }
-  await redisStorage.set('user:123', JSON.stringify({name: '张三'}));
-  console.log('redisStorage:', redisStorage);
 })
 
 // 监听快捷键命令
