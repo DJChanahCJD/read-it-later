@@ -7,8 +7,7 @@ import "remixicon/fonts/remixicon.css"
 import { ReadingCard } from "./components/ReadingCard"
 import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate } from "../../utils/common"
 import { ReadingItem } from "../../utils/typing"
-import { storage } from "../../utils/storage"
-// 默认分类列表
+import { KEYS, storage } from "../../utils/storage"
 
 /**
  * Popup 组件 - 展示稍后阅读列表
@@ -81,7 +80,7 @@ const Popup: React.FC = () => {
 
   useEffect(() => {
     // 加载保存的链接和分类
-    storage.get(["readLaterLinks", "readLaterCategories"], (result: any) => {
+    storage.get([KEYS.readLaterLinks, KEYS.readLaterCategories, KEYS.lastSelectedCategory], (result: any) => {
       const links = result.readLaterLinks || []
 
       // 确保所有链接都有分类字段
@@ -97,6 +96,11 @@ const Popup: React.FC = () => {
       if (result.readLaterCategories) {
         setCategories(result.readLaterCategories)
       }
+
+      // 加载上次选择的分类
+      const lastCategory = result.lastSelectedCategory || ALL_CATEGORIE
+      setSelectedCategory(lastCategory)
+      applyFilters(updatedLinks, searchTerm, lastCategory)
     })
 
     // 自动聚焦搜索框
@@ -140,6 +144,8 @@ const Popup: React.FC = () => {
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category)
     applyFilters(readingList, searchTerm, category)
+    // 保存选择的分类
+    storage.set({ lastSelectedCategory: category })
   }
 
   /**
@@ -304,6 +310,87 @@ const Popup: React.FC = () => {
     e.currentTarget.classList.remove("drag-over");
   };
 
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * 处理添加新分类
+   */
+  const handleAddCategory = () => {
+    const newCategory = `新分类${categories.length}`;
+    const newCategories = [...categories, newCategory];
+    setCategories(newCategories);
+    storage.set({ readLaterCategories: newCategories });
+    // 设置为编辑模式
+    setEditingCategoryIndex(newCategories.length - 1);
+    setEditingCategoryName(newCategory);
+  };
+
+  /**
+   * 处理开始编辑分类
+   * @param {number} index - 要编辑的分类索引
+   * @param {string} category - 分类名称
+   */
+  const handleStartEdit = (index: number, category: string) => {
+    if (category === ALL_CATEGORIE) return;
+    setEditingCategoryIndex(index);
+    setEditingCategoryName(category);
+  };
+
+  /**
+   * 处理保存分类编辑
+   */
+  const handleSaveEdit = () => {
+    if (editingCategoryIndex === null) return;
+    // 检查名称是否为空或重复
+    if (!editingCategoryName.trim() || 
+        categories.some((cat, idx) => idx !== editingCategoryIndex && cat === editingCategoryName.trim())) {
+      setEditingCategoryIndex(null);
+      return;
+    }
+
+    const newCategories = [...categories];
+    const oldCategory = newCategories[editingCategoryIndex];
+    newCategories[editingCategoryIndex] = editingCategoryName.trim();
+    setCategories(newCategories);
+    storage.set({ readLaterCategories: newCategories });
+
+    // 更新使用旧分类名称的阅读项
+    const newList = readingList.map(item => 
+      item.category === oldCategory ? { ...item, category: editingCategoryName.trim() } : item
+    );
+    storage.set({ readLaterLinks: newList });
+    setReadingList(newList);
+    applyFilters(newList, searchTerm, editingCategoryName.trim());
+
+
+    setEditingCategoryIndex(null);
+  };
+
+  /**
+   * 处理取消编辑
+   */
+  const handleCancelEdit = () => {
+    setEditingCategoryIndex(null);
+  };
+
+  // 监听编辑模式下的键盘事件
+  useEffect(() => {
+    if (editingCategoryIndex !== null && editInputRef.current) {
+      editInputRef.current.focus();
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          handleSaveEdit();
+        } else if (e.key === 'Escape') {
+          handleCancelEdit();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    } 
+  }, [editingCategoryIndex, editingCategoryName]);
+
   return (
     <div className="container">
       <div className="search-container">
@@ -335,16 +422,35 @@ const Popup: React.FC = () => {
                 category === ALL_CATEGORIE ? "no-drag" : ""
               }`}
               onClick={() => handleCategorySelect(category)}
-              draggable={category !== ALL_CATEGORIE}
+              onDoubleClick={() => handleStartEdit(index, category)}
+              draggable={category !== ALL_CATEGORIE && editingCategoryIndex == null}
               onDragStart={(e) => handleCategoryDragStart(e, index)}
               onDragOver={(e) => handleCategoryDragOver(e, index)}
               onDragLeave={handleCategoryDragLeave}
               onDrop={(e) => handleCategoryDrop(e, index)}
               onDragEnd={handleCategoryDragEnd}
+              title={"双击编辑分类"}
             >
-              {category}
+              {editingCategoryIndex === index ? (
+                <input
+                  ref={editInputRef}
+                  type="text"
+                  value={editingCategoryName}
+                  onChange={(e) => setEditingCategoryName(e.target.value)}
+                  onBlur={handleSaveEdit}
+                  className="category-edit-input"
+                  draggable="false"
+                />
+              ) : (<span className="category-name">{category}</span>)}
             </div>
           ))}
+          <button 
+            className="category-add-btn" 
+            onClick={handleAddCategory}
+            title="添加新分类"
+          >
+            <i className="ri-add-line"></i>
+          </button>
         </div>
       )}
 

@@ -219,3 +219,38 @@ body {
   color: var(--primary);
   margin-bottom: 4px;
 }
+
+.category-edit-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  min-width: 50px;
+}
+
+.category-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.category-add-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.category-edit-input {
+  user-select: text;
+}

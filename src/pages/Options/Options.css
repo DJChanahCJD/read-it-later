@@ -441,7 +441,7 @@ body {
 
 .actions button:hover {
   opacity: 1;
-  color: var(--danger);
+  color: var(--primary);
 }
 
 .empty-list {
@@ -485,3 +485,18 @@ body {
 .shortcut-btn i {
   font-size: 16px;
 }
+
+.edit-title-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--primary);
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  outline: none;
+}
+
+.edit-btn {
+  margin-right: 8px;
+  color: var(--text-secondary);
+}
+

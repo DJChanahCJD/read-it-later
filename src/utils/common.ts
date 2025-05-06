@@ -39,9 +39,9 @@ const formatDate = (dateString: string): string => {
     // 如果是今天，显示时间
     if (diff < MS_PER_DAY && dateDay === now.getDate()) {
         return `今天 ${date.toLocaleTimeString("zh-CN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
         })}`
     }
 
@@ -66,6 +66,14 @@ const formatDate = (dateString: string): string => {
     // 使用 Intl.DateTimeFormat 进行本地化格式化
     return new Intl.DateTimeFormat("zh-CN", options).format(date).replace(/\//g, "/")
 }
+
+// 生成过去30天内的随机时间
+const getRandomDate = () => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    const randomTime = thirtyDaysAgo.getTime() + Math.random() * (now.getTime() - thirtyDaysAgo.getTime());
+    return new Date(randomTime).toISOString();
+};
 
 /**
  * 提取域名或文件路径
@@ -106,4 +114,4 @@ const getBrowserShortcutSettingUrl = (): string => {
     return 'chrome://extensions/shortcuts';
 };
 
-export { formatDate, extractHostname, getBrowserShortcutSettingUrl }
+export { formatDate, getRandomDate, extractHostname, getBrowserShortcutSettingUrl }

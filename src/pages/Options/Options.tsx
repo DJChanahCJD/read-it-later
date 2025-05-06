@@ -17,11 +17,12 @@ const Options: React.FC = () => {
   const [selectAll, setSelectAll] = useState(false)
 
   // 分类状态
-  const [categories, setCategories] = useState<string[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIE)
-  const [newCategoryName, setNewCategoryName] = useState("")
-  const [editingCategory, setEditingCategory] = useState<string | null>(null)
-  const [editCategoryName, setEditCategoryName] = useState("")
+  
+  const [categories, setCategories] = useState<string[]>([])                      // 所有分类列表
+  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState<number>(0)
+  const [editingCategoryName, setEditingCategoryName] = useState("")               // 分类输入框的值（统一用于新建和编辑）
+  const [creatingCategoryName, setCreatingCategoryName] = useState("")
+  // 移动状态
   const [isMoveDropdownOpen, setIsMoveDropdownOpen] = useState(false)
 
   // 加载数据
@@ -33,20 +34,21 @@ const Options: React.FC = () => {
     storage.get([KEYS.readLaterLinks, KEYS.readLaterCategories], (result: any) => {
       // 获取阅读列表，如果为空则使用空数组
       const links = result.readLaterLinks || []
+      const categories = result.readLaterCategories || defaultCategories
+      const validSelectedIndex = categories[selectedCategoryIndex] ? selectedCategoryIndex : 0
+      const selectedCategory = categories[validSelectedIndex] || defaultCategories[0]
   
-      // 更新阅读列表状态
+      // 更新状态
       setReadingList(links)
-      // 应用过滤器（搜索词和分类）
+      setCategories(categories)
+      setSelectedCategoryIndex(validSelectedIndex)
+      
+      // 应用过滤器
       applyFilters(links, searchTerm, selectedCategory)
   
-      // 处理分类数据
-      if (result.readLaterCategories) {
-        setCategories(result.readLaterCategories)
-      } else {
-        // 如果没有保存的分类，使用默认分类
-        setCategories(defaultCategories)
-        storage.set({ readLaterCategories: defaultCategories })
-      }
+      // 重置分类输入框
+      setEditingCategoryName("")
+      setCreatingCategoryName("")
     })
   }
 
@@ -105,138 +107,144 @@ const Options: React.FC = () => {
     setSearchTerm(term)
     // 简单的防抖实现
     setTimeout(() => {
-      applyFilters(readingList, term, selectedCategory)
+      applyFilters(readingList, term, categories[selectedCategoryIndex])
     }, 200)
   }
 
-    // 添加排序状态
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-    // 添加排序处理函数
-    const handleSortByDate = () => {
-      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-      setSortOrder(newOrder);
-      
-      // 对当前过滤后的列表进行排序
-      const sortedList = [...filteredList].sort((a, b) => {
-        const dateA = new Date(a.addedAt).getTime();
-        const dateB = new Date(b.addedAt).getTime();
-        return newOrder === 'asc' ? dateA - dateB : dateB - dateA;
-      });
-      
-      setFilteredList(sortedList);
-    };
-
-  // 处理分类选择
-  const handleCategorySelect = (category: string) => {
-    setSelectedCategory(category)
-    applyFilters(readingList, searchTerm, category)
+  /**
+   * 处理编辑阅读项标题
+   * @param {string} url - 要编辑的阅读项的URL
+   * @param {string} newTitle - 新标题
+   */
+  const handleEdit = (url: string, newTitle: string) => {
+    const newList = readingList.map((item) => (item.url === url ? { ...item, title: newTitle } : item))
+    storage.set({ readLaterLinks: newList })
+    setReadingList(newList)
+    applyFilters(newList, searchTerm, categories[selectedCategoryIndex])
   }
 
+  // 添加排序状态
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // 添加排序处理函数
+  const handleSortByDate = () => {
+    const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+    setSortOrder(newOrder);
+    
+    // 对当前过滤后的列表进行排序
+    const sortedList = [...filteredList].sort((a, b) => {
+      const dateA = new Date(a.addedAt).getTime();
+      const dateB = new Date(b.addedAt).getTime();
+      return newOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+    
+    setFilteredList(sortedList);
+  };
+
+
+
+  // 处理分类选择
+  const handleCategorySelect = (index: number) => {
+    const category = categories[index] || ALL_CATEGORIE
+    applyFilters(readingList, searchTerm, category)
+    setSelectedCategoryIndex(index)
+  }
+  
   // 添加新分类
   const handleAddCategory = () => {
-    if (newCategoryName.trim() === "") return
+    if (creatingCategoryName.trim() === "") return
   
     // 检查分类名称长度
-    if (newCategoryName.trim().length > MAX_CATEGORIE_LENGTH) {
+    if (creatingCategoryName.trim().length > MAX_CATEGORIE_LENGTH) {
       alert(`分类名称不能超过${MAX_CATEGORIE_LENGTH}个字符`);
       return;
     }
-
-    const c = newCategoryName.trim()
+  
+    const newCategory = creatingCategoryName.trim()
     // 检查是否已存在同名分类
-    if (categories.some((c) => c === newCategoryName.trim())) {
+    if (categories.includes(newCategory)) {
       alert("分类名称已存在")
-      setSelectedCategory(c)
       return
     }
-
-    const newCategory = newCategoryName.trim()
-
+  
     const updatedCategories = [...categories, newCategory]
     setCategories(updatedCategories)
     storage.set({ readLaterCategories: updatedCategories })
-    setNewCategoryName("")
+    setCreatingCategoryName("") // 重置输入框
   }
 
   // 开始编辑分类
-  const handleEditCategoryStart = (category: string) => {
-    setEditingCategory(category)
-    setEditCategoryName(category)
+  // 添加一个新的状态来跟踪正在编辑的分类索引
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  
+  const handleEditCategoryStart = (categoryIndex: number) => {
+    setEditingIndex(categoryIndex)
+    setEditingCategoryName(categories[categoryIndex] || "")
   }
-
-  // 保存编辑的分类
+  
+  // 修改保存编辑分类的函数
   const handleEditCategorySave = () => {
-    const prevCategoryName = editingCategory?.trim()
-    if (prevCategoryName === "" || editCategoryName.trim() === prevCategoryName) {
-      setEditingCategory(null)
-      setEditCategoryName("")
+    if (editingIndex === null) return
+    
+    const originalCategoryName = categories[editingIndex].trim()
+    const newCategoryName = editingCategoryName.trim()
+    
+    if (originalCategoryName === "" || newCategoryName === originalCategoryName) {
+      console.log("分类名称未更改")
+      setEditingCategoryName("") 
+      setEditingIndex(null)
       return
     }
   
     // 检查分类名称长度
-    if (editCategoryName.trim().length > MAX_CATEGORIE_LENGTH) {
+    if (newCategoryName.length > MAX_CATEGORIE_LENGTH) {
       alert(`分类名称不能超过${MAX_CATEGORIE_LENGTH}个字符`);
+      setEditingCategoryName(originalCategoryName);
+      setEditingIndex(null)
       return;
     }
   
     // 检查是否已存在同名分类
-    if (categories.some((c) => c === editCategoryName.trim())) {
+    if (categories.some((c) => c === newCategoryName)) {
       alert("分类名称已存在")
-      setEditingCategory(null)
-      setEditCategoryName("")
+      setEditingIndex(null)
       return
     }
-
+  
     const updatedCategories = categories.map((c) =>
-      c === editingCategory ? editCategoryName.trim() : c
+      c === originalCategoryName ? newCategoryName : c
     )
     // 更新所有使用该分类的链接
-    const oldCategoryName = categories.find((c) => c === editingCategory)
     const updatedLinks = readingList.map((link) =>
-      link.category === oldCategoryName ? { ...link, category: editCategoryName.trim() } : link,
+      link.category === originalCategoryName ? { ...link, category: newCategoryName } : link,
     )
-
+  
     setCategories(updatedCategories)
     setReadingList(updatedLinks)
-    applyFilters(updatedLinks, searchTerm, selectedCategory)
-
     storage.set({
       readLaterCategories: updatedCategories,
       readLaterLinks: updatedLinks,
     })
-
-    setEditingCategory(null)
-    setEditCategoryName("")
+    setEditingIndex(null)
+    setEditingCategoryName("")
   }
 
   // 删除分类
-  const handleDeleteCategory = (categoryId: string) => {
-    const categoryToDelete = categories.find((c) => c === categoryId)
+  const handleDeleteCategory = (category: string) => {
+    const categoryToDelete = categories.find((c) => c === category)
     if (!categoryToDelete) return
 
-    if (window.confirm(`确定要删除「${ categoryToDelete }」吗？该分类下的链接将移至「全部」。`)) {
+    if (window.confirm(`确定要删除「${ categoryToDelete }」吗？该分类下的链接将移至「${ ALL_CATEGORIE }」。`)) {
       // 将该分类下的链接移至"默认"分类
       const updatedLinks = readingList.map((link) =>
         link.category === categoryToDelete ? { ...link, category: ALL_CATEGORIE} : link,
       )
-
-      const updatedCategories = categories.filter((c) => c !== categoryId)
-
-      setCategories(updatedCategories)
-      setReadingList(updatedLinks)
-      applyFilters(updatedLinks, searchTerm, selectedCategory)
-
+      const updatedCategories = categories.filter((c) => c !== category)
       storage.set({
         readLaterCategories: updatedCategories,
         readLaterLinks: updatedLinks,
       })
-
-      // 如果删除的是当前选中的分类，则切换到"全部"
-      if (selectedCategory === categoryToDelete) {
-        setSelectedCategory(ALL_CATEGORIE)
-        applyFilters(updatedLinks, searchTerm, ALL_CATEGORIE)
-      }
+      setCategories(updatedCategories)
     }
   }
 
@@ -264,6 +272,10 @@ const Options: React.FC = () => {
     }
   }
 
+    // 编辑标题状态
+    const [editingUrl, setEditingUrl] = useState<string | null>(null)
+    const [editTitle, setEditTitle] = useState('')
+
   // 批量删除选中项
   const handleBatchDelete = () => {
     if (selectedItems.length === 0) return
@@ -273,7 +285,7 @@ const Options: React.FC = () => {
       const updatedList = readingList.filter((item) => !selectedItems.includes(item.url))
       storage.set({ readLaterLinks: updatedList })
       setReadingList(updatedList)
-      applyFilters(updatedList, searchTerm, selectedCategory)
+      applyFilters(updatedList, searchTerm, categories[selectedCategoryIndex])
     }
   }
 
@@ -305,8 +317,6 @@ const Options: React.FC = () => {
     )
 
     storage.set({ readLaterLinks: updatedList })
-    setReadingList(updatedList)
-    applyFilters(updatedList, searchTerm, selectedCategory)
     setIsMoveDropdownOpen(false) // 选择后关闭下拉菜单
   }
 
@@ -314,8 +324,6 @@ const Options: React.FC = () => {
   const handleDeleteLink = (url: string) => {
     const updatedList = readingList.filter((item) => item.url !== url)
     storage.set({ readLaterLinks: updatedList })
-    setReadingList(updatedList)
-    applyFilters(updatedList, searchTerm, selectedCategory)
   }
 
   /**
@@ -345,8 +353,6 @@ const Options: React.FC = () => {
   
     const updatedList = [...testLinks, ...readingList]
     storage.set({ readLaterLinks: updatedList })
-    setReadingList(updatedList)
-    applyFilters(updatedList, searchTerm, selectedCategory)
   }
 
   return (
@@ -383,24 +389,22 @@ const Options: React.FC = () => {
           </div>
 
           <div className="category-list">
-            {categories.map((category) => (
+            {categories.map((category, index) => (
               <div
                 key={category}
-                className={`category-item ${selectedCategory === category ? "active" : ""}`}
-                onClick={() => handleCategorySelect(category)}
+                className={`category-item ${selectedCategoryIndex === index ? "active" : ""}`}
+                onClick={() => handleCategorySelect(index)}
               >
-                {editingCategory === category ? (
+                { editingCategoryName.length > 0 && editingIndex === index ? (
                   <div className="category-edit">
                     <input
                       type="text"
-                      value={editCategoryName}
-                      onChange={(e) => setEditCategoryName(e.target.value)}
+                      value={editingCategoryName}
+                      onChange={(e) => setEditingCategoryName(e.target.value)}
                       onKeyUp={(e) => e.key === "Enter" && handleEditCategorySave()}
+                      onBlur={handleEditCategorySave}
                       autoFocus
                     />
-                    <button onClick={handleEditCategorySave}>
-                      <i className="ri-check-line"></i>
-                    </button>
                   </div>
                 ) : (
                   <>
@@ -419,7 +423,7 @@ const Options: React.FC = () => {
                           title="编辑分类"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleEditCategoryStart(category)
+                            handleEditCategoryStart(index)
                           }}
                         >
                           <i className="ri-edit-line"></i>
@@ -448,9 +452,9 @@ const Options: React.FC = () => {
               <input
                 type="text"
                 placeholder="新分类名称"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyUp={(e) => e.key === "Enter" && handleAddCategory()}
+                value={creatingCategoryName}
+                onChange={(e) => setCreatingCategoryName(e.target.value)}
+                onKeyUp={(e) => e.key === "Enter"  && handleAddCategory()}
               />
             </div>
             <button onClick={handleAddCategory} title="添加分类">
@@ -529,9 +533,36 @@ const Options: React.FC = () => {
                     />
                   </div>
                   <div className="title" title={item.title}>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      {item.title}
-                    </a>
+                    {editingUrl === item.url ? (
+                      <input
+                        type="text"
+                        className="edit-title-input"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onBlur={() => {
+                          if (editTitle.trim()) {
+                            handleEdit(item.url, editTitle.trim())
+                          }
+                          setEditingUrl(null)
+                          setEditTitle('')
+                        }}
+                        onKeyUp={(e) => {
+                          if (e.key === 'Enter' && editTitle.trim()) {
+                            handleEdit(item.url, editTitle.trim())
+                            setEditingUrl(null)
+                            setEditTitle('')
+                          } else if (e.key === 'Escape') {
+                            setEditingUrl(null)
+                            setEditTitle('')
+                          }
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                        {item.title}
+                      </a>
+                    )}
                   </div>
                   <div className="url" title={item.url}>
                     {extractHostname(item.url)}
@@ -539,6 +570,16 @@ const Options: React.FC = () => {
                   <div className="category">{item.category}</div>
                   <div className="date" title={item.addedAt}>{formatDate(item.addedAt)}</div>
                   <div className="actions">
+                    <button
+                      className="edit-btn"
+                      title="编辑"
+                      onClick={() => {
+                        setEditingUrl(item.url)
+                        setEditTitle(item.title)
+                      }}
+                    >
+                      <i className="ri-edit-line"></i>
+                    </button>
                     <button className="delete-btn" onClick={() => handleDeleteLink(item.url)}>
                       <i className="ri-delete-bin-line"></i>
                     </button>

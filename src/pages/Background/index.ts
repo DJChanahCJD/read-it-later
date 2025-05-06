@@ -1,5 +1,5 @@
 import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE } from "../../utils/common"
-import { KEYS } from "../../utils/storage"
+import { KEYS, redisStorage } from "../../utils/storage"
 import { ReadingItem, Tab } from "../../utils/typing"
 
 
@@ -38,12 +38,14 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 // 处理右键菜单点击事件
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === ADD_TO_READLATER_MENU_ID) {
     const url = info.linkUrl || info.pageUrl
     const title = info.linkUrl ? info.selectionText || url : tab?.title
     handleAddOrRemoveLink(url, title, tab)
   }
+  await redisStorage.set('user:123', JSON.stringify({name: '张三'}));
+  console.log('redisStorage:', redisStorage);
 })
 
 // 监听快捷键命令

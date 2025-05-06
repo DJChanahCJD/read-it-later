@@ -119,7 +119,7 @@ const handleCopyLink = (e: React.MouseEvent) => {
   return (
     <div
       className="card"
-      draggable={true}
+      draggable={!isEditing}
       onDragStart={(e) => onDragStart(e, index)}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

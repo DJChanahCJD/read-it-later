@@ -1,3 +1,6 @@
+import { createClient } from 'redis';
+
+
 /**
  * Chrome 存储服务 - 提供类型安全的存储访问
  * @author DJCHAN
@@ -8,6 +11,7 @@
 export const KEYS = {
     readLaterLinks: 'readLaterLinks',
     readLaterCategories: 'readLaterCategories',
+    lastSelectedCategory: 'lastSelectedCategory',
     readingProgress: 'readingProgress'
 } as const;
 
@@ -17,3 +21,4 @@ export const storage = chrome.storage.local;
 // 导出类型
 export type StorageKey = keyof typeof KEYS;
 export type StorageKeyValue = typeof KEYS[StorageKey];
+
