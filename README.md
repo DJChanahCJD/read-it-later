@@ -19,7 +19,7 @@
 npm install
 
 # 开发模式
-npm start
+npm run start
 
 # 构建生产版本
 npm run build

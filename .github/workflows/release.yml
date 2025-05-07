@@ -2,8 +2,10 @@ name: Build and Release
 
 on:
   push:
+    branches:
+      - main  # 当推送到main分支时触发
     tags:
-      - 'v*' # 当推送版本标签时触发
+      - 'v*'  # 当推送版本标签时触发
 
 jobs:
   build:
