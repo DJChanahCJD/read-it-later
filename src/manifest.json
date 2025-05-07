@@ -40,8 +40,10 @@
   ],
   "commands": {
     "add-to-readlater": {
-      "description": "添加到稍后阅读",
-      "global": true
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "添加到稍后阅读"
     }
   }
 }
