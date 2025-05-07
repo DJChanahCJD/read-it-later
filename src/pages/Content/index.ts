@@ -1,12 +1,12 @@
 import { KEYS, storage } from "../../utils/storage";
 
-console.log('content.ts loaded!!!!!!!!!!!!!!!!!!!!');
 // 记录阅读进度的DOM路径和位置信息
 let lastReadingPosition = {
   domPath: '',
   textContent: '',
   scrollTop: 0
 };
+console.log('content.ts loaded!!!!!!!!!!!!!!!!!!!!');
 
 // 监听来自 background 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
