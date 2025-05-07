@@ -80,10 +80,6 @@ var options = {
         generator: {
           filename: 'assets/img/[name][ext]'
         },
-        // loader: 'file-loader',
-        // options: {
-        //   name: '[name].[ext]',
-        // },
       },
       {
         test: /\.html$/,
