@@ -6,29 +6,60 @@ let lastReadingPosition = {
   textContent: '',
   scrollTop: 0
 };
+
 console.log('content.ts loaded!!!!!!!!!!!!!!!!!!!!');
 
-// 监听来自 background 的消息
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'scrollToText') {
-    const { selectedText } = request;
-    if (selectedText) {
-      highlightAndScrollToText(selectedText);
-    }
-    sendResponse({ success: true });
-  } else if (request.type === 'saveReadingProgress') {
-    console.log('saveReadingProgress');
-    saveCurrentReadingPosition();
-    sendResponse({ success: true });
-  } else if (request.type === 'restoreReadingProgress') {
-    console.log('restoreReadingProgress');
-    restoreReadingPosition();
-    sendResponse({ success: true });
-  }
-  return true;
-});
-
 // 监听页面滚动事件
+// 检查当前页面是否在稍后阅读列表中
+async function isPageInReadLater(): Promise<boolean> {
+  return new Promise((resolve) => {
+    storage.get([KEYS.readLaterLinks], (result) => {
+      const links = result.readLaterLinks || [];
+      const currentUrl = window.location.href;
+      resolve(links.some((link: any) => link.url === currentUrl));
+    });
+  });
+}
+
+/**
+ * 保存当前阅读位置
+ */
+async function saveCurrentReadingPosition() {
+  // 先检查页面是否在稍后阅读列表中
+  const shouldSave = await isPageInReadLater();
+  if (!shouldSave) {
+    return;
+  }
+
+  // 获取当前视窗中心点的元素
+  const centerY = window.innerHeight / 2;
+  const element = document.elementFromPoint(window.innerWidth / 2, centerY) as Element;
+
+  if (element) {
+    // 获取元素的DOM路径
+    const domPath = getDomPath(element);
+    // 获取周围文本内容作为上下文
+    const textContent = element.textContent?.trim().substring(0, 100) || '';
+
+    lastReadingPosition = {
+      domPath,
+      textContent,
+      scrollTop: window.scrollY
+    };
+
+    // 保存到storage
+    storage.set({
+      readingProgress: {
+        url: window.location.href,
+        position: lastReadingPosition
+      }
+    });
+
+    console.log('阅读位置已保存:', lastReadingPosition);
+  }
+}
+
+// 修改滚动事件监听器
 let scrollTimer: number | null = null;
 window.addEventListener('scroll', () => {
   if (scrollTimer) {
@@ -39,7 +70,7 @@ window.addEventListener('scroll', () => {
   }, 300);
 });
 
-// 监听DOM变化
+// 修改DOM变化监听器
 const observer = new MutationObserver(() => {
   if (lastReadingPosition.domPath) {
     saveCurrentReadingPosition();
@@ -81,38 +112,6 @@ function getDomPath(element: Element): string {
   }
 
   return path.join(' > ');
-}
-
-/**
- * 保存当前阅读位置
- */
-function saveCurrentReadingPosition() {
-  // 获取当前视窗中心点的元素
-  const centerY = window.innerHeight / 2;
-  const element = document.elementFromPoint(window.innerWidth / 2, centerY) as Element;
-
-  if (element) {
-    // 获取元素的DOM路径
-    const domPath = getDomPath(element);
-    // 获取周围文本内容作为上下文
-    const textContent = element.textContent?.trim().substring(0, 100) || '';
-
-    lastReadingPosition = {
-      domPath,
-      textContent,
-      scrollTop: window.scrollY
-    };
-
-    // 保存到storage
-    storage.set({
-      readingProgress: {
-        url: window.location.href,
-        position: lastReadingPosition
-      }
-    });
-
-    console.log('阅读位置已保存:', lastReadingPosition);
-  }
 }
 
 /**
@@ -208,3 +207,36 @@ function highlightAndScrollToText(text: string) {
     }, 3000);
   }
 }
+
+/**
+ * 清除当前页面的阅读进度
+ */
+async function clearReadingProgress() {
+  const currentUrl = window.location.href;
+  storage.get([KEYS.readingProgress], (result) => {
+    if (result.readingProgress?.url === currentUrl) {
+      storage.remove([KEYS.readingProgress]);
+    }
+  });
+}
+
+// 监听来自 background 的消息，增加移除进度的处理
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'scrollToText') {
+    const { selectedText } = request;
+    if (selectedText) {
+      highlightAndScrollToText(selectedText);
+    }
+    sendResponse({ success: true });
+  } else if (request.type === 'saveReadingProgress') {
+    saveCurrentReadingPosition();
+    sendResponse({ success: true });
+  } else if (request.type === 'restoreReadingProgress') {
+    restoreReadingPosition();
+    sendResponse({ success: true });
+  } else if (request.type === 'clearReadingProgress') {
+    clearReadingProgress();
+    sendResponse({ success: true });
+  }
+  return true;
+});
