@@ -40,6 +40,7 @@ npm run build
 
 ## 🏞️ 截图
 
-![image-20250507095842687](https://djchan-xyz.pages.dev/file/AgACAgUAAyEGAASJIjr1AAICx2gavm6vbDzwCgK87yEyHXD2IDCKAALIyjEbnRPYVGFncdo_b4_sAQADAgADeQADNgQ.png)
+<img width="1246" height="696" alt="image" src="https://github.com/user-attachments/assets/625bf21e-8825-41fa-b545-ccdabd35e899" />
+
 
   
