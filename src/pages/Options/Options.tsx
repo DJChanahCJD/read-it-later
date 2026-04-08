@@ -3,7 +3,7 @@
 import React from "react"
 import { useEffect, useState } from "react"
 import "./Options.css"
-import "remixicon/fonts/remixicon.css"
+import "@/assets/fonts/remixicon.css"
 import {
   ALL_CATEGORIE,
   MAX_CATEGORIE_LENGTH,

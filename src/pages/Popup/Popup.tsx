@@ -3,7 +3,7 @@
 import React from "react"
 import { useEffect, useRef, useState, type DragEvent } from "react"
 import "./Popup.css"
-import "remixicon/fonts/remixicon.css"
+import "@/assets/fonts/remixicon.css"
 import { ReadingCard } from "./components/ReadingCard"
 import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE, extractHostname, formatDate } from "@/utils/common"
 import {
