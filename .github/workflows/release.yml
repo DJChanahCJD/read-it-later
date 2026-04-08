@@ -26,13 +26,10 @@ jobs:
     - name: Build extension
       run: npm run build
     
-    - name: Zip build directory
-      run: cd build && zip -r ../read-it-later.zip .
-    
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: read-it-later.zip
+        files: zip/*.zip
         name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false

@@ -1,6 +1,6 @@
-import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE } from "../../utils/common"
-import { KEYS } from "../../utils/storage"
-import { ReadingItem, Tab } from "../../utils/typing"
+import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE } from "@/utils/common"
+import { createReadingItem, loadReadLaterState, saveReadingList } from "@/utils/readLater"
+import type { Tab } from "@/utils/typing"
 
 
 const ADD_TO_READLATER_MENU_ID = "add-to-readlater"
@@ -105,30 +105,30 @@ function updateExtensionIcon(exists : boolean, tabId? : number) {
 
 // 修改添加/移除链接的处理函数
 const handleAddOrRemoveLink = (url :Tab['url'], title: Tab['title'] , tab: Tab | undefined) => {
-  chrome.storage.local.get([KEYS.readLaterLinks], (result) => {
-    const links = result.readLaterLinks || [];
-    const exists = links.some((link: ReadingItem) => link.url === url);
+  if (!url) {
+    return
+  }
 
-    if (!exists) {
-      links.unshift({
-        url: url,
-        title: title,
-        addedAt: new Date().toISOString(),
-        category: ALL_CATEGORIE,
-      });
+  loadReadLaterState()
+    .then(({ readingList }) => {
+      const exists = readingList.some((link) => link.url === url)
 
-      chrome.storage.local.set({ readLaterLinks: links });
-      updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, REMOVE_FROM_TEXT);
-      // 更新图标状态为已添加
-      if (tab) updateExtensionIcon(true, tab.id);
-    } else {
-      const updatedLinks = links.filter((link : ReadingItem) => link.url !== url);
-      chrome.storage.local.set({ readLaterLinks: updatedLinks });
-      updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, ADD_TO_TEXT);
-      // 更新图标状态为未添加
-      if (tab) updateExtensionIcon(false, tab.id);
-    }
-  });
+      if (!exists) {
+        return saveReadingList([createReadingItem(url, title || url, ALL_CATEGORIE), ...readingList]).then(() => {
+          updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, REMOVE_FROM_TEXT)
+          if (tab) updateExtensionIcon(true, tab.id)
+        })
+      }
+
+      const updatedLinks = readingList.filter((link) => link.url !== url)
+      return saveReadingList(updatedLinks).then(() => {
+        updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, ADD_TO_TEXT)
+        if (tab) updateExtensionIcon(false, tab.id)
+      })
+    })
+    .catch((error) => {
+      console.error("Failed to update reading list:", error)
+    })
 };
 
 // 更新右键菜单
@@ -149,9 +149,8 @@ async function handleTabUpdate(tabId: number) {
 
     console.log("1. Processing tab:", tab.url);
     
-    const result = await chrome.storage.local.get([KEYS.readLaterLinks]);
-    const links = result.readLaterLinks || [];
-    const exists = links.some((link: ReadingItem) => link.url === tab.url);
+    const { readingList } = await loadReadLaterState()
+    const exists = readingList.some((link) => link.url === tab.url)
     
     // 更新右键菜单 - 修复此处传参方式
     const title = exists ? REMOVE_FROM_TEXT : ADD_TO_TEXT;

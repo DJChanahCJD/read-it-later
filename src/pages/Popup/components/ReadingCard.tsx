@@ -3,15 +3,14 @@
 import React from "react"
 import { useState, useEffect, useRef, type DragEvent } from "react"
 import "./ReadingCard.css"
-import { ReadingItem } from "../../../utils/typing"
-import { ALL_CATEGORIE } from "../../../utils/common"
+import type { ReadingItem } from "@/utils/typing"
+import { ALL_CATEGORIE } from "@/utils/common"
 
 interface ReadingCardProps {
   item: ReadingItem
   index: number
   onDelete: (url: string) => void
   onEdit: (url: string, newTitle: string) => void
-  onChangeCategory: (url: string, category: string) => void // 添加更改分类的处理函数
   onDragStart: (e: DragEvent<HTMLDivElement>, index: number) => void
   onDragOver: (e: DragEvent<HTMLDivElement>) => void
   onDragLeave: (e: DragEvent<HTMLDivElement>) => void
@@ -27,7 +26,6 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
   index,
   onDelete,
   onEdit,
-  onChangeCategory,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -39,28 +37,14 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(item.title)
-  const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const categoryMenuRef = useRef<HTMLDivElement>(null)
   const [copyText, setCopyText] = useState<string>('')
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
     }
-
-    // 点击外部关闭分类菜单
-    const handleClickOutside = (event: MouseEvent) => {
-      if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target as Node)) {
-        setShowCategoryMenu(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [isEditing, showCategoryMenu])
+  }, [isEditing])
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -92,7 +76,7 @@ export const ReadingCard: React.FC<ReadingCardProps> = ({
   }
 
   const handleCardClick = () => {
-    if (!isEditing && !showCategoryMenu) {
+    if (!isEditing) {
       window.open(item.url, "_blank")
     }
   }

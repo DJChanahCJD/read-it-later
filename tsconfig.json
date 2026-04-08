@@ -3,6 +3,7 @@
     "target": "es5",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": false,
+    "baseUrl": ".",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -13,8 +14,12 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "noEmit": false,
-    "jsx": "react"
+    "jsx": "react",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["chrome", "vitest/globals", "node"]
   },
-  "include": ["src"],
+  "include": ["src", "vitest.config.ts"],
   "exclude": ["build", "node_modules"]
 }

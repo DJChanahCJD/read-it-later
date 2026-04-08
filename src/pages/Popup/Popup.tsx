@@ -1,395 +1,282 @@
 "use client"
 
 import React from "react"
-import { useState, useEffect, useRef, type DragEvent } from "react"
+import { useEffect, useRef, useState, type DragEvent } from "react"
 import "./Popup.css"
 import "remixicon/fonts/remixicon.css"
 import { ReadingCard } from "./components/ReadingCard"
-import { ALL_CATEGORIE, defaultCategories, extractHostname, formatDate } from "../../utils/common"
-import { ReadingItem } from "../../utils/typing"
-import { KEYS, storage } from "../../utils/storage"
+import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE, extractHostname, formatDate } from "@/utils/common"
+import {
+  createReadingItem,
+  filterReadingList,
+  loadReadLaterState,
+  moveReadingItem,
+  replaceReadingItem,
+  saveCategories,
+  saveReadingList,
+  saveSelectedCategory,
+} from "@/utils/readLater"
+import { KEYS } from "@/utils/storage"
+import type { ReadingItem } from "@/utils/typing"
 
-/**
- * Popup 组件 - 展示稍后阅读列表
- * @returns {JSX.Element} 渲染的 Popup 组件
- */
 const Popup: React.FC = () => {
   const [readingList, setReadingList] = useState<ReadingItem[]>([])
-  const [filteredList, setFilteredList] = useState<ReadingItem[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categories, setCategories] = useState<string[]>(defaultCategories)
+  const [categories, setCategories] = useState<string[]>([ALL_CATEGORIE])
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIE)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [draggedItemUrl, setDraggedItemUrl] = useState<string | null>(null)
+  const [draggedCategory, setDraggedCategory] = useState<string | null>(null)
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
-
-  // 拖拽相关状态
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
-
-  // 分类拖拽开始
-  const handleCategoryDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
-    if (categories[index] === ALL_CATEGORIE) {
-      e.preventDefault();
-      return;
-    }
-    setDraggedCategoryIndex(index);
-    e.currentTarget.classList.add("dragging"); // 添加拖拽样式
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  // 分类拖拽经过
-  const handleCategoryDragOver = (e: DragEvent<HTMLDivElement>, index: number) => {
-    e.preventDefault();
-    // 如果是分类排序拖拽，且目标是"全部"分类，则不允许
-    if (draggedCategoryIndex !== null && categories[index] === ALL_CATEGORIE) {
-      return;
-    }
-    e.currentTarget.classList.add("drag-over");
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // 分类拖拽放置
-  const handleCategoryDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove("drag-over");
-  
-    // 如果是分类排序的拖拽
-    if (draggedCategoryIndex !== null) {
-      // 不允许移动"全部"分类或将其他分类移动到"全部"分类的位置
-      if (draggedCategoryIndex === 0 || dropIndex === 0) {
-        return;
-      }
-  
-      const newCategories = [...categories];
-      const [movedCategory] = newCategories.splice(draggedCategoryIndex, 1);
-      newCategories.splice(dropIndex, 0, movedCategory);
-  
-      setCategories(newCategories);
-      storage.set({ readLaterCategories: newCategories });
-    } 
-    // 如果是 ReadingCard 拖拽到分类
-    else if (draggedIndex !== null) {
-      const draggedItem = filteredList[draggedIndex];
-      const targetCategory = categories[dropIndex];
-      
-      // 更新阅读项的分类
-      handleChangeCategory(draggedItem.url, targetCategory);
-    }
-    
-    setDraggedCategoryIndex(null);
-  };
+  const editInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // 加载保存的链接和分类
-    storage.get([KEYS.readLaterLinks, KEYS.readLaterCategories, KEYS.lastSelectedCategory], (result: any) => {
-      const links = result.readLaterLinks || []
+    const syncState = async () => {
+      const nextState = await loadReadLaterState()
+      setReadingList(nextState.readingList)
+      setCategories(nextState.categories)
+      setSelectedCategory(nextState.selectedCategory)
+    }
 
-      // 确保所有链接都有分类字段
-      const updatedLinks = links.map((link: ReadingItem) => ({
-        ...link,
-        category: link.category || ALL_CATEGORIE,
-      }))
+    syncState()
 
-      setReadingList(updatedLinks)
-      applyFilters(updatedLinks, searchTerm, selectedCategory)
-
-      // 加载保存的分类
-      if (result.readLaterCategories) {
-        setCategories(result.readLaterCategories)
+    const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName !== "local") {
+        return
       }
 
-      // 加载上次选择的分类
-      const lastCategory = result.lastSelectedCategory || ALL_CATEGORIE
-      setSelectedCategory(lastCategory)
-      applyFilters(updatedLinks, searchTerm, lastCategory)
-    })
-
-    // 自动聚焦搜索框
-    if (searchInputRef.current) {
-      searchInputRef.current.focus()
-    }
-  }, [searchTerm, selectedCategory])
-
-  // 应用过滤器（搜索词和分类）
-  const applyFilters = (links: ReadingItem[], term: string, category: string) => {
-    let filtered = links
-
-    // 应用搜索过滤
-    if (term) {
-      filtered = filtered.filter(
-        (item) =>
-          item.title.toLowerCase().includes(term.toLowerCase()) || item.url.toLowerCase().includes(term.toLowerCase()),
-      )
+      if (changes[KEYS.readLaterLinks] || changes[KEYS.readLaterCategories] || changes[KEYS.lastSelectedCategory]) {
+        syncState().catch((error) => console.error("Failed to sync popup state:", error))
+      }
     }
 
-    // 应用分类过滤
-    if (category !== ALL_CATEGORIE) {
-      filtered = filtered.filter((item) => item.category === category)
-    }
+    chrome.storage.onChanged.addListener(handleStorageChange)
+    searchInputRef.current?.focus()
 
-    setFilteredList(filtered)
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (editingCategoryIndex !== null) {
+      editInputRef.current?.focus()
+    }
+  }, [editingCategoryIndex])
+
+  const filteredList = filterReadingList(readingList, searchTerm, selectedCategory)
+
+  const persistReadingList = async (nextList: ReadingItem[]) => {
+    setReadingList(nextList)
+    await saveReadingList(nextList)
   }
 
-  // 搜索功能
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value.toLowerCase()
-    setSearchTerm(term)
-
-    // 简单的防抖实现
-    setTimeout(() => {
-      applyFilters(readingList, term, selectedCategory)
-    }, 200)
+  const persistCategories = async (nextCategories: string[]) => {
+    setCategories(nextCategories)
+    await saveCategories(nextCategories)
   }
 
-  // 处理分类选择
-  const handleCategorySelect = (category: string) => {
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(event.target.value)
+  }
+
+  const handleCategorySelect = async (category: string) => {
     setSelectedCategory(category)
-    applyFilters(readingList, searchTerm, category)
-    // 保存选择的分类
-    storage.set({ lastSelectedCategory: category })
+    await saveSelectedCategory(category)
   }
 
-  /**
-   * 处理删除阅读项
-   * @param {string} url - 要删除的阅读项的URL
-   */
-  const handleDelete = (url: string) => {
-    const newList = readingList.filter((item) => item.url !== url)
-    storage.set({ readLaterLinks: newList })
-    setReadingList(newList)
-    applyFilters(newList, searchTerm, selectedCategory)
+  const handleDelete = async (url: string) => {
+    const nextList = readingList.filter((item) => item.url !== url)
+    await persistReadingList(nextList)
 
-    // 更新右键菜单
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs: any) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0]
-      if (currentTab.url === url) {
+      if (currentTab?.url === url) {
         chrome.runtime.sendMessage({
-          type: "updateContextMenu",
-          url: url,
-          action: "remove",
+          type: MESSAGE_TYPE.UPDATE_CONTEXT_MENU,
+          action: CONTEXT_MENU_ACTION.REMOVE,
         })
       }
     })
   }
 
-  /**
-   * 处理编辑阅读项标题
-   * @param {string} url - 要编辑的阅读项的URL
-   * @param {string} newTitle - 新标题
-   */
-  const handleEdit = (url: string, newTitle: string) => {
-    const newList = readingList.map((item) => (item.url === url ? { ...item, title: newTitle } : item))
-    storage.set({ readLaterLinks: newList })
-    setReadingList(newList)
-    applyFilters(newList, searchTerm, selectedCategory)
+  const handleEdit = async (url: string, newTitle: string) => {
+    await persistReadingList(replaceReadingItem(readingList, url, (item) => ({ ...item, title: newTitle })))
   }
 
-  /**
-   * 处理更改阅读项分类
-   * @param {string} url - 要更改分类的阅读项的URL
-   * @param {string} category - 新分类
-   */
-  const handleChangeCategory = (url: string, category: string) => {
-    const newList = readingList.map((item) => (item.url === url ? { ...item, category } : item))
-    storage.set({ readLaterLinks: newList })
-    setReadingList(newList)
-    applyFilters(newList, searchTerm, selectedCategory)
+  const handleChangeCategory = async (url: string, category: string) => {
+    await persistReadingList(replaceReadingItem(readingList, url, (item) => ({ ...item, category })))
   }
 
-  /**
-   * 添加当前页面到稍后阅读
-   */
   const addCurrentPage = () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs: any) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       const currentTab = tabs[0]
-      const url = currentTab.url || ""
-      const title = currentTab.title || ""
+      const url = currentTab?.url || ""
+      const title = currentTab?.title || url
 
-      // 检查链接是否已存在
-      if (!readingList.some((link) => link.url === url)) {
-        // 添加新链接到列表开头，使用当前选择的分类
-        const newItem = {
-          url: url,
-          title: title,
-          addedAt: new Date().toISOString(),
-          category: selectedCategory === ALL_CATEGORIE ? ALL_CATEGORIE : selectedCategory,
-        }
+      if (!url) {
+        return
+      }
 
-        const newList = [newItem, ...readingList]
-        storage.set({ readLaterLinks: newList })
-        setReadingList(newList)
-        applyFilters(newList, searchTerm, selectedCategory)
-
-        // 更新右键菜单
+      const existingItem = readingList.find((item) => item.url === url)
+      if (!existingItem) {
+        const category = selectedCategory === ALL_CATEGORIE ? ALL_CATEGORIE : selectedCategory
+        const nextList = [createReadingItem(url, title, category), ...readingList]
+        await persistReadingList(nextList)
         chrome.runtime.sendMessage({
-          type: "updateContextMenu",
-          url: url,
-          action: "add",
+          type: MESSAGE_TYPE.UPDATE_CONTEXT_MENU,
+          action: CONTEXT_MENU_ACTION.ADD,
         })
-      } else {
-        // 不管是否存在，将当前页面的分类更改为选中的分类
-        if (readingList.some((link) => link.url === url && link.category !== selectedCategory)) {
-          const newList = readingList.map((item) => (item.url === url? {...item, category: selectedCategory } : item))
-          storage.set({ readLaterLinks: newList })
-          setReadingList(newList)
-          applyFilters(newList, searchTerm, selectedCategory)
-        }
+        return
+      }
+
+      if (existingItem.category !== selectedCategory) {
+        await handleChangeCategory(url, selectedCategory)
       }
     })
   }
 
-  // 拖拽处理函数
-  const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
-    setDraggedIndex(index)
-    e.currentTarget.classList.add("dragging")
-    e.dataTransfer.effectAllowed = "move"
+  const handleDragStart = (_event: DragEvent<HTMLDivElement>, index: number) => {
+    setDraggedItemUrl(filteredList[index]?.url || null)
   }
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    e.currentTarget.classList.add("drag-over")
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    event.currentTarget.classList.add("drag-over")
   }
 
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drag-over")
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.currentTarget.classList.remove("drag-over")
   }
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove("drag-over");
-  
-    if (draggedIndex === null || draggedIndex === dropIndex) return;
-  
-    // 1. 先找到过滤列表中拖拽项对应的原列表项
-    const draggedItem = filteredList[draggedIndex];
-    const originalIndex = readingList.findIndex(item => item.url === draggedItem.url);
-    
-    // 2. 找到放置位置对应的原列表索引
-    let targetOriginalIndex = 0;
-    if (dropIndex < filteredList.length) {
-      const targetItem = filteredList[dropIndex];
-      targetOriginalIndex = readingList.findIndex(item => item.url === targetItem.url);
-    } else {
-      targetOriginalIndex = readingList.length;
+  const handleDrop = async (event: DragEvent<HTMLDivElement>, dropIndex: number) => {
+    event.preventDefault()
+    event.currentTarget.classList.remove("drag-over")
+
+    if (!draggedItemUrl) {
+      return
     }
-  
-    // 3. 在原列表上执行移动操作
-    const newList = [...readingList];
-    const [movedItem] = newList.splice(originalIndex, 1);
-    newList.splice(targetOriginalIndex, 0, movedItem);
-  
-    // 4. 更新状态和存储
-    storage.set({ readLaterLinks: newList });
-    setReadingList(newList);
-    applyFilters(newList, searchTerm, selectedCategory);
-  };
 
-  const handleDragEnd = (e: DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("dragging")
-    setDraggedIndex(null)
+    const targetUrl = filteredList[dropIndex]?.url
+    if (draggedItemUrl === targetUrl) {
+      return
+    }
 
-    // 清除所有拖拽状态
+    const nextList = moveReadingItem(readingList, draggedItemUrl, targetUrl)
+    await persistReadingList(nextList)
+  }
+
+  const handleDragEnd = (event: DragEvent<HTMLDivElement>) => {
+    event.currentTarget.classList.remove("dragging")
+    setDraggedItemUrl(null)
     document.querySelectorAll(".card").forEach((card) => {
       ;(card as HTMLElement).classList.remove("drag-over")
     })
   }
 
-  // 分类拖拽结束
-  const handleCategoryDragEnd = (e: DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("dragging");
-    setDraggedCategoryIndex(null);
-    
-    // 清除所有分类选项卡的拖拽状态
-    document.querySelectorAll(".category-tab").forEach((tab) => {
-      (tab as HTMLElement).classList.remove("drag-over");
-    });
-  };
-
-  // 分类拖拽离开
-  const handleCategoryDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove("drag-over");
-  };
-
-  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
-  const [editingCategoryName, setEditingCategoryName] = useState("");
-  const editInputRef = useRef<HTMLInputElement>(null);
-
-  /**
-   * 处理添加新分类
-   */
-  const handleAddCategory = () => {
-    const newCategory = `新分类${categories.length}`;
-    const newCategories = [...categories, newCategory];
-    setCategories(newCategories);
-    storage.set({ readLaterCategories: newCategories });
-    // 设置为编辑模式
-    setEditingCategoryIndex(newCategories.length - 1);
-    setEditingCategoryName(newCategory);
-  };
-
-  /**
-   * 处理开始编辑分类
-   * @param {number} index - 要编辑的分类索引
-   * @param {string} category - 分类名称
-   */
-  const handleStartEdit = (index: number, category: string) => {
-    if (category === ALL_CATEGORIE) return;
-    setEditingCategoryIndex(index);
-    setEditingCategoryName(category);
-  };
-
-  /**
-   * 处理保存分类编辑
-   */
-  const handleSaveEdit = () => {
-    if (editingCategoryIndex === null) return;
-    // 检查名称是否为空或重复
-    if (!editingCategoryName.trim() || 
-        categories.some((cat, idx) => idx !== editingCategoryIndex && cat === editingCategoryName.trim())) {
-      setEditingCategoryIndex(null);
-      return;
+  const handleCategoryDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+    const category = categories[index]
+    if (category === ALL_CATEGORIE) {
+      event.preventDefault()
+      return
     }
 
-    const newCategories = [...categories];
-    const oldCategory = newCategories[editingCategoryIndex];
-    newCategories[editingCategoryIndex] = editingCategoryName.trim();
-    setCategories(newCategories);
-    storage.set({ readLaterCategories: newCategories });
+    setDraggedCategory(category)
+    event.currentTarget.classList.add("dragging")
+    event.dataTransfer.effectAllowed = "move"
+  }
 
-    // 更新使用旧分类名称的阅读项
-    const newList = readingList.map(item => 
-      item.category === oldCategory ? { ...item, category: editingCategoryName.trim() } : item
-    );
-    storage.set({ readLaterLinks: newList });
-    setReadingList(newList);
-    applyFilters(newList, searchTerm, editingCategoryName.trim());
+  const handleCategoryDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
+    event.preventDefault()
+    if (categories[index] === ALL_CATEGORIE) {
+      return
+    }
+    event.currentTarget.classList.add("drag-over")
+  }
 
+  const handleCategoryDrop = async (event: DragEvent<HTMLDivElement>, dropIndex: number) => {
+    event.preventDefault()
+    event.currentTarget.classList.remove("drag-over")
 
-    setEditingCategoryIndex(null);
-  };
+    if (draggedCategory) {
+      if (dropIndex === 0) {
+        setDraggedCategory(null)
+        return
+      }
 
-  /**
-   * 处理取消编辑
-   */
-  const handleCancelEdit = () => {
-    setEditingCategoryIndex(null);
-  };
+      const nextCategories = [...categories]
+      const sourceIndex = nextCategories.findIndex((category) => category === draggedCategory)
+      if (sourceIndex === -1 || sourceIndex === dropIndex) {
+        setDraggedCategory(null)
+        return
+      }
 
-  // 监听编辑模式下的键盘事件
-  useEffect(() => {
-    if (editingCategoryIndex !== null && editInputRef.current) {
-      editInputRef.current.focus();
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          handleSaveEdit();
-        } else if (e.key === 'Escape') {
-          handleCancelEdit();
-        }
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    } 
-  }, [editingCategoryIndex, editingCategoryName]);
+      const [movedCategory] = nextCategories.splice(sourceIndex, 1)
+      nextCategories.splice(dropIndex, 0, movedCategory)
+      await persistCategories(nextCategories)
+      setDraggedCategory(null)
+      return
+    }
+
+    if (draggedItemUrl) {
+      await handleChangeCategory(draggedItemUrl, categories[dropIndex])
+    }
+  }
+
+  const handleCategoryDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.currentTarget.classList.remove("drag-over")
+  }
+
+  const handleCategoryDragEnd = (event: DragEvent<HTMLDivElement>) => {
+    event.currentTarget.classList.remove("dragging")
+    setDraggedCategory(null)
+    document.querySelectorAll(".category-tab").forEach((tab) => {
+      ;(tab as HTMLElement).classList.remove("drag-over")
+    })
+  }
+
+  const handleAddCategory = async () => {
+    const newCategory = `新分类${categories.length}`
+    const nextCategories = [...categories, newCategory]
+    await persistCategories(nextCategories)
+    setEditingCategoryIndex(nextCategories.length - 1)
+    setEditingCategoryName(newCategory)
+  }
+
+  const handleStartEdit = (index: number, category: string) => {
+    if (category === ALL_CATEGORIE) {
+      return
+    }
+
+    setEditingCategoryIndex(index)
+    setEditingCategoryName(category)
+  }
+
+  const handleSaveEdit = async () => {
+    if (editingCategoryIndex === null) {
+      return
+    }
+
+    const nextName = editingCategoryName.trim()
+    if (!nextName || categories.some((category, index) => index !== editingCategoryIndex && category === nextName)) {
+      setEditingCategoryIndex(null)
+      return
+    }
+
+    const previousName = categories[editingCategoryIndex]
+    const nextCategories = [...categories]
+    nextCategories[editingCategoryIndex] = nextName
+
+    const nextList = readingList.map((item) =>
+      item.category === previousName ? { ...item, category: nextName } : item,
+    )
+
+    setSelectedCategory((current) => (current === previousName ? nextName : current))
+    setEditingCategoryIndex(null)
+    await Promise.all([persistCategories(nextCategories), persistReadingList(nextList), saveSelectedCategory(nextName)])
+  }
 
   return (
     <div className="container">
@@ -412,7 +299,6 @@ const Popup: React.FC = () => {
         </button>
       </div>
 
-      {/* 分类选项卡 */}
       {categories.length > 1 && (
         <div className="categories-container">
           {categories.map((category, index) => (
@@ -421,34 +307,32 @@ const Popup: React.FC = () => {
               className={`category-tab ${selectedCategory === category ? "active" : ""} ${
                 category === ALL_CATEGORIE ? "no-drag" : ""
               }`}
-              onClick={() => handleCategorySelect(category)}
+              onClick={() => void handleCategorySelect(category)}
               onDoubleClick={() => handleStartEdit(index, category)}
-              draggable={category !== ALL_CATEGORIE && editingCategoryIndex == null}
-              onDragStart={(e) => handleCategoryDragStart(e, index)}
-              onDragOver={(e) => handleCategoryDragOver(e, index)}
+              draggable={category !== ALL_CATEGORIE && editingCategoryIndex === null}
+              onDragStart={(event) => handleCategoryDragStart(event, index)}
+              onDragOver={(event) => handleCategoryDragOver(event, index)}
               onDragLeave={handleCategoryDragLeave}
-              onDrop={(e) => handleCategoryDrop(e, index)}
+              onDrop={(event) => void handleCategoryDrop(event, index)}
               onDragEnd={handleCategoryDragEnd}
-              title={"双击编辑分类"}
+              title="双击编辑分类"
             >
               {editingCategoryIndex === index ? (
                 <input
                   ref={editInputRef}
                   type="text"
                   value={editingCategoryName}
-                  onChange={(e) => setEditingCategoryName(e.target.value)}
-                  onBlur={handleSaveEdit}
+                  onChange={(event) => setEditingCategoryName(event.target.value)}
+                  onBlur={() => void handleSaveEdit()}
                   className="category-edit-input"
                   draggable="false"
                 />
-              ) : (<span className="category-name">{category}</span>)}
+              ) : (
+                <span className="category-name">{category}</span>
+              )}
             </div>
           ))}
-          <button 
-            className="category-add-btn" 
-            onClick={handleAddCategory}
-            title="添加新分类"
-          >
+          <button className="category-add-btn" onClick={() => void handleAddCategory()} title="添加新分类">
             <i className="ri-add-line"></i>
           </button>
         </div>
@@ -466,13 +350,12 @@ const Popup: React.FC = () => {
               key={item.url}
               item={item}
               index={index}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
-              onChangeCategory={handleChangeCategory}
+              onDelete={(url) => void handleDelete(url)}
+              onEdit={(url, newTitle) => void handleEdit(url, newTitle)}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+              onDrop={(event, targetIndex) => void handleDrop(event, targetIndex)}
               onDragEnd={handleDragEnd}
               formatDate={formatDate}
               extractHostname={extractHostname}
