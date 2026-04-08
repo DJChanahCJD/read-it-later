@@ -1,5 +1,5 @@
 import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE } from "@/utils/common"
-import { createReadingItem, loadReadLaterState, saveReadingList } from "@/utils/readLater"
+import { addToTrash, createReadingItem, loadReadLaterState, saveReadingList, saveTrash, softDeleteItem } from "@/utils/readLater"
 import type { Tab } from "@/utils/typing"
 
 
@@ -110,7 +110,7 @@ const handleAddOrRemoveLink = (url :Tab['url'], title: Tab['title'] , tab: Tab |
   }
 
   loadReadLaterState()
-    .then(({ readingList }) => {
+    .then(({ readingList, trash }) => {
       const exists = readingList.some((link) => link.url === url)
 
       if (!exists) {
@@ -120,8 +120,11 @@ const handleAddOrRemoveLink = (url :Tab['url'], title: Tab['title'] , tab: Tab |
         })
       }
 
-      const updatedLinks = readingList.filter((link) => link.url !== url)
-      return saveReadingList(updatedLinks).then(() => {
+      // 软删除：移入回收站
+      const item = readingList.find((link) => link.url === url)!
+      const newTrash = addToTrash(trash, item)
+      const newList = softDeleteItem(readingList, url)
+      return Promise.all([saveReadingList(newList), saveTrash(newTrash)]).then(() => {
         updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, ADD_TO_TEXT)
         if (tab) updateExtensionIcon(false, tab.id)
       })

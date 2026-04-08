@@ -10,6 +10,7 @@ export const KEYS = {
   readLaterCategories: "readLaterCategories",
   lastSelectedCategory: "lastSelectedCategory",
   readingProgress: "readingProgress",
+  readLaterTrash: "readLaterTrash",
 } as const
 
 export const storage = chrome.storage.local
@@ -22,6 +23,7 @@ type StorageShape = {
   [KEYS.readLaterCategories]?: unknown
   [KEYS.lastSelectedCategory]?: unknown
   [KEYS.readingProgress]?: unknown
+  [KEYS.readLaterTrash]?: unknown
 }
 
 export const storageGet = <T extends Partial<StorageShape>>(keys: string[]) =>

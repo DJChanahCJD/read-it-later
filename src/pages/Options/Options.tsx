@@ -14,21 +14,30 @@ import {
   getRandomDate,
 } from "@/utils/common"
 import {
+  addToTrash,
   createReadingItem,
   filterReadingList,
   loadReadLaterState,
   replaceReadingItem,
+  restoreFromTrash,
   saveCategories,
   saveReadingList,
+  saveTrash,
+  softDeleteItem,
   sortReadingListByDate,
 } from "@/utils/readLater"
 import { KEYS } from "@/utils/storage"
-import type { ReadingItem } from "@/utils/typing"
+import type { Category, ReadingItem } from "@/utils/typing"
+
+/** 右侧主区视图模式 */
+type ViewMode = "list" | "trash"
 
 const Options: React.FC = () => {
   const [readingList, setReadingList] = useState<ReadingItem[]>([])
-  const [categories, setCategories] = useState<string[]>([ALL_CATEGORIE])
+  const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIE)
+  const [trash, setTrash] = useState<ReadingItem[]>([])
+  const [viewMode, setViewMode] = useState<ViewMode>("list")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [creatingCategoryName, setCreatingCategoryName] = useState("")
@@ -48,9 +57,11 @@ const Options: React.FC = () => {
       const nextState = await loadReadLaterState()
       setReadingList(nextState.readingList)
       setCategories(nextState.categories)
-      setSelectedCategory((current) =>
-        nextState.categories.includes(current) ? current : nextState.selectedCategory,
-      )
+      setTrash(nextState.trash)
+      setSelectedCategory((current) => {
+        const allNames = [ALL_CATEGORIE, ...nextState.categories.map((c) => c.name)]
+        return allNames.includes(current) ? current : nextState.selectedCategory
+      })
     }
 
     syncState()
@@ -60,7 +71,11 @@ const Options: React.FC = () => {
         return
       }
 
-      if (changes[KEYS.readLaterLinks] || changes[KEYS.readLaterCategories]) {
+      if (
+        changes[KEYS.readLaterLinks] ||
+        changes[KEYS.readLaterCategories] ||
+        changes[KEYS.readLaterTrash]
+      ) {
         syncState().catch((error) => console.error("Failed to sync options state:", error))
       }
     }
@@ -79,14 +94,18 @@ const Options: React.FC = () => {
     }
   }, [])
 
+  /** 未归档的正常分类（用于主分类列表） */
+  const activeCategories = categories.filter((c) => !c.isArchived)
+  /** 已归档的分类 */
+  const archivedCategories = categories.filter((c) => c.isArchived)
+  /** 所有分类的 name 列表（含归档，用于 select 等） */
+  const allCategoryNames = [ALL_CATEGORIE, ...categories.map((c) => c.name)]
+  /** 未归档的分类 name 列表（用于 sidebar 选中判断） */
+  const activeCategoryNames = [ALL_CATEGORIE, ...activeCategories.map((c) => c.name)]
+
   const filteredList = sortReadingListByDate(
     filterReadingList(readingList, searchTerm, selectedCategory),
     sortOrder,
-  )
-
-  const selectedCategoryIndex = Math.max(
-    categories.findIndex((category) => category === selectedCategory),
-    0,
   )
 
   const persistReadingList = async (nextList: ReadingItem[]) => {
@@ -94,9 +113,14 @@ const Options: React.FC = () => {
     await saveReadingList(nextList)
   }
 
-  const persistCategories = async (nextCategories: string[]) => {
+  const persistCategories = async (nextCategories: Category[]) => {
     setCategories(nextCategories)
     await saveCategories(nextCategories)
+  }
+
+  const persistTrash = async (nextTrash: ReadingItem[]) => {
+    setTrash(nextTrash)
+    await saveTrash(nextTrash)
   }
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,8 +136,9 @@ const Options: React.FC = () => {
     setSortOrder((current) => (current === "asc" ? "desc" : "asc"))
   }
 
-  const handleCategorySelect = (index: number) => {
-    setSelectedCategory(categories[index] || ALL_CATEGORIE)
+  const handleCategorySelect = (categoryName: string) => {
+    setSelectedCategory(categoryName)
+    setViewMode("list")
     setSelectedItems([])
   }
 
@@ -128,19 +153,19 @@ const Options: React.FC = () => {
       return
     }
 
-    if (categories.includes(nextName)) {
+    if (categories.some((c) => c.name === nextName)) {
       alert("分类名称已存在")
       return
     }
 
-    const nextCategories = [...categories, nextName]
+    const nextCategories: Category[] = [...categories, { name: nextName, isArchived: false }]
     await persistCategories(nextCategories)
     setCreatingCategoryName("")
   }
 
-  const handleEditCategoryStart = (categoryIndex: number) => {
-    setEditingIndex(categoryIndex)
-    setEditingCategoryName(categories[categoryIndex] || "")
+  const handleEditCategoryStart = (index: number) => {
+    setEditingIndex(index)
+    setEditingCategoryName(activeCategories[index]?.name || "")
   }
 
   const handleEditCategorySave = async () => {
@@ -148,7 +173,7 @@ const Options: React.FC = () => {
       return
     }
 
-    const originalName = categories[editingIndex]
+    const originalName = activeCategories[editingIndex]?.name
     const nextName = editingCategoryName.trim()
 
     if (!nextName || nextName === originalName) {
@@ -164,14 +189,15 @@ const Options: React.FC = () => {
       return
     }
 
-    if (categories.some((category, index) => index !== editingIndex && category === nextName)) {
+    if (categories.some((c) => c.name !== originalName && c.name === nextName)) {
       alert("分类名称已存在")
       setEditingIndex(null)
       return
     }
 
-    const nextCategories = [...categories]
-    nextCategories[editingIndex] = nextName
+    const nextCategories = categories.map((c) =>
+      c.name === originalName ? { ...c, name: nextName } : c,
+    )
     const nextList = readingList.map((item) =>
       item.category === originalName ? { ...item, category: nextName } : item,
     )
@@ -182,23 +208,49 @@ const Options: React.FC = () => {
     setEditingCategoryName("")
   }
 
-  const handleDeleteCategory = async (category: string) => {
-    if (
-      !window.confirm(`确定要删除「${category}」吗？该分类下的链接将移至「${ALL_CATEGORIE}」。`)
-    ) {
+  const handleDeleteCategory = async (categoryName: string) => {
+    const itemsInCategory = readingList.filter((item) => item.category === categoryName)
+    const confirmMsg =
+      itemsInCategory.length > 0
+        ? `确定要删除「${categoryName}」吗？该分类下的 ${itemsInCategory.length} 个链接将移入回收站。`
+        : `确定要删除「${categoryName}」吗？`
+
+    if (!window.confirm(confirmMsg)) {
       return
     }
 
-    const nextList = readingList.map((item) =>
-      item.category === category ? { ...item, category: ALL_CATEGORIE } : item,
-    )
-    const nextCategories = categories.filter((item) => item !== category)
+    // 将分类下的所有链接软删除进回收站
+    let currentTrash = [...trash]
+    for (const item of itemsInCategory) {
+      currentTrash = addToTrash(currentTrash, item)
+    }
+    const nextList = readingList.filter((item) => item.category !== categoryName)
+    const nextCategories = categories.filter((c) => c.name !== categoryName)
 
-    if (selectedCategory === category) {
+    if (selectedCategory === categoryName) {
       setSelectedCategory(ALL_CATEGORIE)
     }
 
-    await Promise.all([persistCategories(nextCategories), persistReadingList(nextList)])
+    await Promise.all([persistCategories(nextCategories), persistReadingList(nextList), persistTrash(currentTrash)])
+  }
+
+  /** 归档分类 */
+  const handleArchiveCategory = async (categoryName: string) => {
+    const nextCategories = categories.map((c) =>
+      c.name === categoryName ? { ...c, isArchived: true } : c,
+    )
+    if (selectedCategory === categoryName) {
+      setSelectedCategory(ALL_CATEGORIE)
+    }
+    await persistCategories(nextCategories)
+  }
+
+  /** 恢复已归档分类 */
+  const handleRestoreCategory = async (categoryName: string) => {
+    const nextCategories = categories.map((c) =>
+      c.name === categoryName ? { ...c, isArchived: false } : c,
+    )
+    await persistCategories(nextCategories)
   }
 
   const toggleSelectItem = (url: string) => {
@@ -218,6 +270,7 @@ const Options: React.FC = () => {
     setSelectedItems(filteredList.map((item) => item.url))
   }
 
+  /** 批量软删除 */
   const handleBatchDelete = async () => {
     if (selectedItems.length === 0) {
       return
@@ -227,8 +280,17 @@ const Options: React.FC = () => {
       return
     }
 
-    const nextList = readingList.filter((item) => !selectedItems.includes(item.url))
-    await persistReadingList(nextList)
+    let currentTrash = [...trash]
+    let currentList = [...readingList]
+    for (const url of selectedItems) {
+      const item = currentList.find((i) => i.url === url)
+      if (item) {
+        currentTrash = addToTrash(currentTrash, item)
+        currentList = softDeleteItem(currentList, url)
+      }
+    }
+
+    await Promise.all([persistReadingList(currentList), persistTrash(currentTrash)])
     setSelectedItems([])
   }
 
@@ -246,9 +308,33 @@ const Options: React.FC = () => {
     setIsMoveDropdownOpen(false)
   }
 
+  /** 软删除单条链接 */
   const handleDeleteLink = async (url: string) => {
-    const nextList = readingList.filter((item) => item.url !== url)
-    await persistReadingList(nextList)
+    const item = readingList.find((i) => i.url === url)
+    if (!item) return
+
+    const newTrash = addToTrash(trash, item)
+    const newList = softDeleteItem(readingList, url)
+    await Promise.all([persistReadingList(newList), persistTrash(newTrash)])
+  }
+
+  /** 从回收站还原 */
+  const handleRestoreFromTrash = async (url: string) => {
+    const result = restoreFromTrash(trash, readingList, url)
+    await Promise.all([persistReadingList(result.list), persistTrash(result.trash)])
+  }
+
+  /** 永久删除回收站中单条 */
+  const handlePermanentDelete = async (url: string) => {
+    await persistTrash(trash.filter((t) => t.url !== url))
+  }
+
+  /** 清空回收站 */
+  const handleEmptyTrash = async () => {
+    if (!window.confirm("确定要清空回收站吗？此操作不可撤销。")) {
+      return
+    }
+    await persistTrash([])
   }
 
   /** 打开手动添加面板，重置表单并默认当前选中分类 */
@@ -320,17 +406,38 @@ const Options: React.FC = () => {
       </div>
 
       <div className="options-content">
+        {/* 左侧侧边栏 */}
         <div className="categories-sidebar">
           <div className="sidebar-header">
             <h2>分类管理</h2>
           </div>
 
+          {/* 回收站入口 */}
+          <div
+            className={`category-item trash-item ${viewMode === "trash" ? "active" : ""}`}
+            onClick={() => setViewMode("trash")}
+          >
+            <i className="ri-delete-bin-line trash-icon"></i>
+            <div className="category-name">回收站</div>
+            {trash.length > 0 && <div className="category-count">{trash.length}</div>}
+          </div>
+
           <div className="category-list">
-            {categories.map((category, index) => (
+            {/* 全部分类 */}
+            <div
+              className={`category-item ${viewMode === "list" && selectedCategory === ALL_CATEGORIE ? "active" : ""}`}
+              onClick={() => handleCategorySelect(ALL_CATEGORIE)}
+            >
+              <div className="category-name">{ALL_CATEGORIE}</div>
+              <div className="category-count">{readingList.length}</div>
+            </div>
+
+            {/* 未归档分类 */}
+            {activeCategories.map((category, index) => (
               <div
-                key={category}
-                className={`category-item ${selectedCategoryIndex === index ? "active" : ""}`}
-                onClick={() => handleCategorySelect(index)}
+                key={category.name}
+                className={`category-item ${viewMode === "list" && selectedCategory === category.name ? "active" : ""}`}
+                onClick={() => handleCategorySelect(category.name)}
               >
                 {editingIndex === index ? (
                   <div className="category-edit">
@@ -345,41 +452,87 @@ const Options: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="category-name">{category}</div>
+                    <div className="category-name">{category.name}</div>
                     <div className="category-count">
-                      {category === ALL_CATEGORIE
-                        ? readingList.length
-                        : readingList.filter((item) => item.category === category).length}
+                      {readingList.filter((item) => item.category === category.name).length}
                     </div>
-                    {category !== ALL_CATEGORIE && (
-                      <div className="category-actions">
-                        <button
-                          className="edit-btn"
-                          title="编辑分类"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            handleEditCategoryStart(index)
-                          }}
-                        >
-                          <i className="ri-edit-line"></i>
-                        </button>
-                        <button
-                          className="delete-btn"
-                          title="删除分类"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleDeleteCategory(category)
-                          }}
-                        >
-                          <i className="ri-delete-bin-line"></i>
-                        </button>
-                      </div>
-                    )}
+                    <div className="category-actions">
+                      <button
+                        className="edit-btn"
+                        title="编辑分类"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleEditCategoryStart(index)
+                        }}
+                      >
+                        <i className="ri-edit-line"></i>
+                      </button>
+                      <button
+                        className="archive-btn"
+                        title="归档分类"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handleArchiveCategory(category.name)
+                        }}
+                      >
+                        <i className="ri-archive-line"></i>
+                      </button>
+                      <button
+                        className="delete-btn"
+                        title="删除分类"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handleDeleteCategory(category.name)
+                        }}
+                      >
+                        <i className="ri-delete-bin-line"></i>
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
             ))}
           </div>
+
+          {/* 已归档分类区域 */}
+          {archivedCategories.length > 0 && (
+            <div className="archived-section">
+              <div className="archived-section-title">
+                <i className="ri-archive-line"></i>
+                已归档
+              </div>
+              {archivedCategories.map((category) => (
+                <div key={category.name} className="category-item archived-item">
+                  <div className="category-name">{category.name}</div>
+                  <div className="category-count">
+                    {readingList.filter((item) => item.category === category.name).length}
+                  </div>
+                  <div className="category-actions">
+                    <button
+                      className="restore-btn"
+                      title="恢复分类"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void handleRestoreCategory(category.name)
+                      }}
+                    >
+                      <i className="ri-arrow-go-back-line"></i>
+                    </button>
+                    <button
+                      className="delete-btn"
+                      title="删除分类"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void handleDeleteCategory(category.name)
+                      }}
+                    >
+                      <i className="ri-delete-bin-line"></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="add-category">
             <div className="add-category-input-wrapper">
@@ -398,177 +551,253 @@ const Options: React.FC = () => {
           </div>
         </div>
 
+        {/* 右侧主区 */}
         <div className="links-container">
-          <div className="links-header">
-            <div className="search-box">
-              <i className="ri-search-line"></i>
-              <input type="text" placeholder="搜索链接..." value={searchTerm} onChange={handleSearch} />
-            </div>
-
-            <div className="add-link-wrapper" onClick={(e) => e.stopPropagation()}>
-              <button className="add-link-btn" onClick={toggleAddPanel} title="手动添加链接">
-                <i className="ri-add-circle-line"></i>
-              </button>
-              {isAddPanelOpen && (
-                <div className="add-link-panel">
-                  <div className="panel-field">
-                    <label>链接地址 <span className="required">*</span></label>
-                    <input
-                      type="url"
-                      placeholder="https://example.com"
-                      value={addUrl}
-                      onChange={(e) => setAddUrl(e.target.value)}
-                      onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="panel-field">
-                    <label>标题（选填）</label>
-                    <input
-                      type="text"
-                      placeholder="留空则使用链接地址"
-                      value={addTitle}
-                      onChange={(e) => setAddTitle(e.target.value)}
-                      onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
-                    />
-                  </div>
-                  <div className="panel-field">
-                    <label>分类</label>
-                    <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="panel-actions">
-                    <button className="panel-cancel-btn" onClick={() => setIsAddPanelOpen(false)}>取消</button>
-                    <button className="panel-submit-btn" onClick={() => void handleAddLink()}>
-                      <i className="ri-add-line"></i>添加
-                    </button>
-                  </div>
+          {viewMode === "trash" ? (
+            /* 回收站视图 */
+            <>
+              <div className="links-header">
+                <div className="trash-header-title">
+                  <i className="ri-delete-bin-line"></i>
+                  回收站
+                  <span className="trash-count-label">（{trash.length} / 100）</span>
                 </div>
-              )}
-            </div>
-
-            <div className="links-actions">
-              {selectedItems.length > 0 && (
-                <>
-                  <div className="batch-move">
-                    <button className="move-btn" onClick={toggleMoveDropdown}>
-                      移动到 <i className="ri-arrow-down-s-line"></i>
+                <div className="links-actions">
+                  {trash.length > 0 && (
+                    <button className="delete-btn empty-trash-btn" onClick={() => void handleEmptyTrash()}>
+                      <i className="ri-delete-bin-fill"></i>
+                      清空回收站
                     </button>
-                    {isMoveDropdownOpen && (
-                      <div className="move-dropdown">
-                        {categories.map((category) => (
-                          <div
-                            key={category}
-                            className="move-item"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleBatchMove(category)
-                            }}
+                  )}
+                </div>
+              </div>
+
+              <div className="links-list">
+                {trash.length === 0 ? (
+                  <div className="empty-list">
+                    <i className="ri-delete-bin-line"></i>
+                    <p>回收站为空</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="links-list-header">
+                      <div className="title">标题</div>
+                      <div className="url">链接</div>
+                      <div className="category">分类</div>
+                      <div className="date">删除时间</div>
+                      <div className="actions">操作</div>
+                    </div>
+                    {[...trash].reverse().map((item) => (
+                      <div key={item.url} className="link-item">
+                        <div className="title" title={item.title}>
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            {item.title}
+                          </a>
+                        </div>
+                        <div className="url" title={item.url}>
+                          {extractHostname(item.url)}
+                        </div>
+                        <div className="category">{item.category}</div>
+                        <div className="date" title={item.addedAt}>
+                          {formatDate(item.addedAt)}
+                        </div>
+                        <div className="actions">
+                          <button
+                            className="restore-item-btn"
+                            title="还原"
+                            onClick={() => void handleRestoreFromTrash(item.url)}
                           >
-                            {category}
-                          </div>
-                        ))}
+                            <i className="ri-arrow-go-back-line"></i>
+                          </button>
+                          <button
+                            className="delete-btn"
+                            title="永久删除"
+                            onClick={() => void handlePermanentDelete(item.url)}
+                          >
+                            <i className="ri-delete-bin-line"></i>
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <button className="delete-btn" onClick={() => void handleBatchDelete()}>
-                    删除
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="links-list">
-            <div className="links-list-header">
-              <div className="checkbox">
-                <input type="checkbox" checked={selectAll} onChange={toggleSelectAll} />
+                    ))}
+                  </>
+                )}
               </div>
-              <div className="title">标题</div>
-              <div className="url">链接</div>
-              <div className="category">分类</div>
-              <div className="date" onClick={handleSortByDate} style={{ cursor: "pointer" }}>
-                日期 {sortOrder === "asc" ? <i className="ri-sort-asc"></i> : <i className="ri-sort-desc"></i>}
-              </div>
-              <div className="actions">操作</div>
-            </div>
-
-            {filteredList.length === 0 ? (
-              <div className="empty-list">
-                <i className="ri-inbox-line"></i>
-                <p>暂无链接</p>
-              </div>
-            ) : (
-              filteredList.map((item) => (
-                <div key={item.url} className="link-item">
-                  <div className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.includes(item.url)}
-                      onChange={() => toggleSelectItem(item.url)}
-                    />
-                  </div>
-                  <div className="title" title={item.title}>
-                    {editingUrl === item.url ? (
-                      <input
-                        type="text"
-                        className="edit-title-input"
-                        value={editTitle}
-                        onChange={(event) => setEditTitle(event.target.value)}
-                        onBlur={() => {
-                          if (editTitle.trim()) {
-                            void handleEdit(item.url, editTitle.trim())
-                          }
-                          setEditingUrl(null)
-                          setEditTitle("")
-                        }}
-                        onKeyUp={(event) => {
-                          if (event.key === "Enter" && editTitle.trim()) {
-                            void handleEdit(item.url, editTitle.trim())
-                            setEditingUrl(null)
-                            setEditTitle("")
-                          } else if (event.key === "Escape") {
-                            setEditingUrl(null)
-                            setEditTitle("")
-                          }
-                        }}
-                        autoFocus
-                      />
-                    ) : (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
-                        {item.title}
-                      </a>
-                    )}
-                  </div>
-                  <div className="url" title={item.url}>
-                    {extractHostname(item.url)}
-                  </div>
-                  <div className="category">{item.category}</div>
-                  <div className="date" title={item.addedAt}>
-                    {formatDate(item.addedAt)}
-                  </div>
-                  <div className="actions">
-                    <button
-                      className="edit-btn"
-                      title="编辑"
-                      onClick={() => {
-                        setEditingUrl(item.url)
-                        setEditTitle(item.title)
-                      }}
-                    >
-                      <i className="ri-edit-line"></i>
-                    </button>
-                    <button className="delete-btn" onClick={() => void handleDeleteLink(item.url)}>
-                      <i className="ri-delete-bin-line"></i>
-                    </button>
-                  </div>
+            </>
+          ) : (
+            /* 正常列表视图 */
+            <>
+              <div className="links-header">
+                <div className="search-box">
+                  <i className="ri-search-line"></i>
+                  <input type="text" placeholder="搜索链接..." value={searchTerm} onChange={handleSearch} />
                 </div>
-              ))
-            )}
-          </div>
+
+                <div className="add-link-wrapper" onClick={(e) => e.stopPropagation()}>
+                  <button className="add-link-btn" onClick={toggleAddPanel} title="手动添加链接">
+                    <i className="ri-add-circle-line"></i>
+                  </button>
+                  {isAddPanelOpen && (
+                    <div className="add-link-panel">
+                      <div className="panel-field">
+                        <label>链接地址 <span className="required">*</span></label>
+                        <input
+                          type="url"
+                          placeholder="https://example.com"
+                          value={addUrl}
+                          onChange={(e) => setAddUrl(e.target.value)}
+                          onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="panel-field">
+                        <label>标题（选填）</label>
+                        <input
+                          type="text"
+                          placeholder="留空则使用链接地址"
+                          value={addTitle}
+                          onChange={(e) => setAddTitle(e.target.value)}
+                          onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                        />
+                      </div>
+                      <div className="panel-field">
+                        <label>分类</label>
+                        <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
+                          {allCategoryNames.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="panel-actions">
+                        <button className="panel-cancel-btn" onClick={() => setIsAddPanelOpen(false)}>取消</button>
+                        <button className="panel-submit-btn" onClick={() => void handleAddLink()}>
+                          <i className="ri-add-line"></i>添加
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="links-actions">
+                  {selectedItems.length > 0 && (
+                    <>
+                      <div className="batch-move">
+                        <button className="move-btn" onClick={toggleMoveDropdown}>
+                          移动到 <i className="ri-arrow-down-s-line"></i>
+                        </button>
+                        {isMoveDropdownOpen && (
+                          <div className="move-dropdown">
+                            {activeCategoryNames.map((categoryName) => (
+                              <div
+                                key={categoryName}
+                                className="move-item"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void handleBatchMove(categoryName)
+                                }}
+                              >
+                                {categoryName}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button className="delete-btn" onClick={() => void handleBatchDelete()}>
+                        删除
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="links-list">
+                <div className="links-list-header">
+                  <div className="checkbox">
+                    <input type="checkbox" checked={selectAll} onChange={toggleSelectAll} />
+                  </div>
+                  <div className="title">标题</div>
+                  <div className="url">链接</div>
+                  <div className="category">分类</div>
+                  <div className="date" onClick={handleSortByDate} style={{ cursor: "pointer" }}>
+                    日期 {sortOrder === "asc" ? <i className="ri-sort-asc"></i> : <i className="ri-sort-desc"></i>}
+                  </div>
+                  <div className="actions">操作</div>
+                </div>
+
+                {filteredList.length === 0 ? (
+                  <div className="empty-list">
+                    <i className="ri-inbox-line"></i>
+                    <p>暂无链接</p>
+                  </div>
+                ) : (
+                  filteredList.map((item) => (
+                    <div key={item.url} className="link-item">
+                      <div className="checkbox">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item.url)}
+                          onChange={() => toggleSelectItem(item.url)}
+                        />
+                      </div>
+                      <div className="title" title={item.title}>
+                        {editingUrl === item.url ? (
+                          <input
+                            type="text"
+                            className="edit-title-input"
+                            value={editTitle}
+                            onChange={(event) => setEditTitle(event.target.value)}
+                            onBlur={() => {
+                              if (editTitle.trim()) {
+                                void handleEdit(item.url, editTitle.trim())
+                              }
+                              setEditingUrl(null)
+                              setEditTitle("")
+                            }}
+                            onKeyUp={(event) => {
+                              if (event.key === "Enter" && editTitle.trim()) {
+                                void handleEdit(item.url, editTitle.trim())
+                                setEditingUrl(null)
+                                setEditTitle("")
+                              } else if (event.key === "Escape") {
+                                setEditingUrl(null)
+                                setEditTitle("")
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer">
+                            {item.title}
+                          </a>
+                        )}
+                      </div>
+                      <div className="url" title={item.url}>
+                        {extractHostname(item.url)}
+                      </div>
+                      <div className="category">{item.category}</div>
+                      <div className="date" title={item.addedAt}>
+                        {formatDate(item.addedAt)}
+                      </div>
+                      <div className="actions">
+                        <button
+                          className="edit-btn"
+                          title="编辑"
+                          onClick={() => {
+                            setEditingUrl(item.url)
+                            setEditTitle(item.title)
+                          }}
+                        >
+                          <i className="ri-edit-line"></i>
+                        </button>
+                        <button className="delete-btn" onClick={() => void handleDeleteLink(item.url)}>
+                          <i className="ri-delete-bin-line"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

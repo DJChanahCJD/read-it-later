@@ -7,6 +7,7 @@ import "@/assets/fonts/remixicon.css"
 import { ReadingCard } from "./components/ReadingCard"
 import { ALL_CATEGORIE, CONTEXT_MENU_ACTION, MESSAGE_TYPE, extractHostname, formatDate } from "@/utils/common"
 import {
+  addToTrash,
   createReadingItem,
   filterReadingList,
   loadReadLaterState,
@@ -15,14 +16,17 @@ import {
   saveCategories,
   saveReadingList,
   saveSelectedCategory,
+  saveTrash,
+  softDeleteItem,
 } from "@/utils/readLater"
 import { KEYS } from "@/utils/storage"
-import type { ReadingItem } from "@/utils/typing"
+import type { Category, ReadingItem } from "@/utils/typing"
 
 const Popup: React.FC = () => {
   const [readingList, setReadingList] = useState<ReadingItem[]>([])
-  const [categories, setCategories] = useState<string[]>([ALL_CATEGORIE])
+  const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORIE)
+  const [trash, setTrash] = useState<ReadingItem[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [draggedItemUrl, setDraggedItemUrl] = useState<string | null>(null)
   const [draggedCategory, setDraggedCategory] = useState<string | null>(null)
@@ -37,6 +41,7 @@ const Popup: React.FC = () => {
       setReadingList(nextState.readingList)
       setCategories(nextState.categories)
       setSelectedCategory(nextState.selectedCategory)
+      setTrash(nextState.trash)
     }
 
     syncState()
@@ -46,7 +51,12 @@ const Popup: React.FC = () => {
         return
       }
 
-      if (changes[KEYS.readLaterLinks] || changes[KEYS.readLaterCategories] || changes[KEYS.lastSelectedCategory]) {
+      if (
+        changes[KEYS.readLaterLinks] ||
+        changes[KEYS.readLaterCategories] ||
+        changes[KEYS.lastSelectedCategory] ||
+        changes[KEYS.readLaterTrash]
+      ) {
         syncState().catch((error) => console.error("Failed to sync popup state:", error))
       }
     }
@@ -65,6 +75,15 @@ const Popup: React.FC = () => {
     }
   }, [editingCategoryIndex])
 
+  /** 当前可见分类（未归档的），用于 Tab 渲染 */
+  const visibleCategories = categories.filter((c) => !c.isArchived)
+
+  /** 全部分类 name 列表（含已归档，用于卡片分类选择器） */
+  const allCategoryNames = categories.map((c) => c.name)
+
+  /** 当前 Tab 对应的分类 name 列表（不含归档） */
+  const visibleCategoryNames = [ALL_CATEGORIE, ...visibleCategories.map((c) => c.name)]
+
   const filteredList = filterReadingList(readingList, searchTerm, selectedCategory)
 
   const persistReadingList = async (nextList: ReadingItem[]) => {
@@ -72,7 +91,7 @@ const Popup: React.FC = () => {
     await saveReadingList(nextList)
   }
 
-  const persistCategories = async (nextCategories: string[]) => {
+  const persistCategories = async (nextCategories: Category[]) => {
     setCategories(nextCategories)
     await saveCategories(nextCategories)
   }
@@ -86,9 +105,16 @@ const Popup: React.FC = () => {
     await saveSelectedCategory(category)
   }
 
+  /** 软删除：将条目移入回收站 */
   const handleDelete = async (url: string) => {
-    const nextList = readingList.filter((item) => item.url !== url)
-    await persistReadingList(nextList)
+    const item = readingList.find((i) => i.url === url)
+    if (!item) return
+
+    const newTrash = addToTrash(trash, item)
+    const newList = softDeleteItem(readingList, url)
+
+    setTrash(newTrash)
+    await Promise.all([persistReadingList(newList), saveTrash(newTrash)])
 
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0]
@@ -177,7 +203,7 @@ const Popup: React.FC = () => {
   }
 
   const handleCategoryDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
-    const category = categories[index]
+    const category = visibleCategoryNames[index]
     if (category === ALL_CATEGORIE) {
       event.preventDefault()
       return
@@ -190,7 +216,7 @@ const Popup: React.FC = () => {
 
   const handleCategoryDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
     event.preventDefault()
-    if (categories[index] === ALL_CATEGORIE) {
+    if (visibleCategoryNames[index] === ALL_CATEGORIE) {
       return
     }
     event.currentTarget.classList.add("drag-over")
@@ -206,22 +232,26 @@ const Popup: React.FC = () => {
         return
       }
 
+      // 在完整 categories（含归档）中操作排序，仅移动未归档分类
       const nextCategories = [...categories]
-      const sourceIndex = nextCategories.findIndex((category) => category === draggedCategory)
-      if (sourceIndex === -1 || sourceIndex === dropIndex) {
+      const sourceIndex = nextCategories.findIndex((c) => c.name === draggedCategory)
+      const targetName = visibleCategoryNames[dropIndex]
+      const targetIndex = nextCategories.findIndex((c) => c.name === targetName)
+
+      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
         setDraggedCategory(null)
         return
       }
 
-      const [movedCategory] = nextCategories.splice(sourceIndex, 1)
-      nextCategories.splice(dropIndex, 0, movedCategory)
+      const [moved] = nextCategories.splice(sourceIndex, 1)
+      nextCategories.splice(targetIndex, 0, moved)
       await persistCategories(nextCategories)
       setDraggedCategory(null)
       return
     }
 
     if (draggedItemUrl) {
-      await handleChangeCategory(draggedItemUrl, categories[dropIndex])
+      await handleChangeCategory(draggedItemUrl, visibleCategoryNames[dropIndex])
     }
   }
 
@@ -238,20 +268,21 @@ const Popup: React.FC = () => {
   }
 
   const handleAddCategory = async () => {
-    const newCategory = `新分类${categories.length}`
-    const nextCategories = [...categories, newCategory]
+    const newCategoryName = `新分类${categories.length}`
+    const nextCategories: Category[] = [...categories, { name: newCategoryName, isArchived: false }]
     await persistCategories(nextCategories)
-    setEditingCategoryIndex(nextCategories.length - 1)
-    setEditingCategoryName(newCategory)
+    // 在 visibleCategoryNames 中找到新分类的索引（含 ALL_CATEGORIE offset）
+    setEditingCategoryIndex(visibleCategoryNames.length) // 新分类追加在末尾
+    setEditingCategoryName(newCategoryName)
   }
 
-  const handleStartEdit = (index: number, category: string) => {
-    if (category === ALL_CATEGORIE) {
+  const handleStartEdit = (index: number, categoryName: string) => {
+    if (categoryName === ALL_CATEGORIE) {
       return
     }
 
     setEditingCategoryIndex(index)
-    setEditingCategoryName(category)
+    setEditingCategoryName(categoryName)
   }
 
   const handleSaveEdit = async () => {
@@ -260,20 +291,20 @@ const Popup: React.FC = () => {
     }
 
     const nextName = editingCategoryName.trim()
-    if (!nextName || categories.some((category, index) => index !== editingCategoryIndex && category === nextName)) {
+    const currentName = visibleCategoryNames[editingCategoryIndex]
+    if (!nextName || categories.some((c, _) => c.name !== currentName && c.name === nextName)) {
       setEditingCategoryIndex(null)
       return
     }
 
-    const previousName = categories[editingCategoryIndex]
-    const nextCategories = [...categories]
-    nextCategories[editingCategoryIndex] = nextName
-
+    const nextCategories = categories.map((c) =>
+      c.name === currentName ? { ...c, name: nextName } : c,
+    )
     const nextList = readingList.map((item) =>
-      item.category === previousName ? { ...item, category: nextName } : item,
+      item.category === currentName ? { ...item, category: nextName } : item,
     )
 
-    setSelectedCategory((current) => (current === previousName ? nextName : current))
+    setSelectedCategory((current) => (current === currentName ? nextName : current))
     setEditingCategoryIndex(null)
     await Promise.all([persistCategories(nextCategories), persistReadingList(nextList), saveSelectedCategory(nextName)])
   }
@@ -299,17 +330,17 @@ const Popup: React.FC = () => {
         </button>
       </div>
 
-      {categories.length > 1 && (
+      {visibleCategoryNames.length > 1 && (
         <div className="categories-container">
-          {categories.map((category, index) => (
+          {visibleCategoryNames.map((categoryName, index) => (
             <div
-              key={category}
-              className={`category-tab ${selectedCategory === category ? "active" : ""} ${
-                category === ALL_CATEGORIE ? "no-drag" : ""
+              key={categoryName}
+              className={`category-tab ${selectedCategory === categoryName ? "active" : ""} ${
+                categoryName === ALL_CATEGORIE ? "no-drag" : ""
               }`}
-              onClick={() => void handleCategorySelect(category)}
-              onDoubleClick={() => handleStartEdit(index, category)}
-              draggable={category !== ALL_CATEGORIE && editingCategoryIndex === null}
+              onClick={() => void handleCategorySelect(categoryName)}
+              onDoubleClick={() => handleStartEdit(index, categoryName)}
+              draggable={categoryName !== ALL_CATEGORIE && editingCategoryIndex === null}
               onDragStart={(event) => handleCategoryDragStart(event, index)}
               onDragOver={(event) => handleCategoryDragOver(event, index)}
               onDragLeave={handleCategoryDragLeave}
@@ -328,7 +359,7 @@ const Popup: React.FC = () => {
                   draggable="false"
                 />
               ) : (
-                <span className="category-name">{category}</span>
+                <span className="category-name">{categoryName}</span>
               )}
             </div>
           ))}
@@ -359,7 +390,7 @@ const Popup: React.FC = () => {
               onDragEnd={handleDragEnd}
               formatDate={formatDate}
               extractHostname={extractHostname}
-              categories={categories}
+              categories={allCategoryNames}
             />
           ))
         )}

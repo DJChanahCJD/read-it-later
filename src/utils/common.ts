@@ -1,10 +1,10 @@
 
 export const ALL_CATEGORIE = "全部"
 export const defaultCategories = [
-  ALL_CATEGORIE,
+    ALL_CATEGORIE,
 ] as string[]
 export const MAX_CATEGORIE_LENGTH = 16
-export const TEST_LINKS_LENGTH = 1
+export const TEST_LINKS_LENGTH = 100
 export const EMPTY_STATE_TEXT = "空空如也..."
 
 
@@ -87,7 +87,7 @@ const extractHostname = (url: string): string => {
             // 移除file:///前缀并保留路径部分
             return url.substring(8); // Windows路径会保留完整格式如C:/path/to/file
         }
-        
+
         const urlObj = new URL(url);
         const hostname = urlObj.hostname.replace("www.", "");
         return hostname.length > 0 ? hostname : url;
@@ -105,11 +105,11 @@ const extractHostname = (url: string): string => {
  */
 const getBrowserShortcutSettingUrl = (): string => {
     const ua = navigator.userAgent.toLowerCase();
-    
+
     // 根据 UserAgent 判断浏览器类型（按市场占有率从高到低排序）
     if (ua.includes('edg')) {
         return 'edge://extensions/shortcuts';  // Microsoft Edge
-    } 
+    }
     // 默认返回 Chrome 的设置页面（大多数 Chromium 浏览器会匹配这个）
     return 'chrome://extensions/shortcuts';
 };
