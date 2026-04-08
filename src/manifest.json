@@ -19,6 +19,10 @@
     "scripting",
     "commands"
   ],
+  "host_permissions": [
+    "https://*.pages.dev/*",
+    "https://*.workers.dev/*"
+  ],
   "icons": {
     "128": "icon-128.png"
   },

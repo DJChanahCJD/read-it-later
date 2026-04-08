@@ -27,7 +27,8 @@ import {
   sortReadingListByDate,
 } from "@/utils/readLater"
 import { KEYS } from "@/utils/storage"
-import type { Category, ReadingItem } from "@/utils/typing"
+import { getSyncConfig, pullFromCloud, pushToCloud, saveSyncConfig } from "@/utils/syncService"
+import type { Category, ReadingItem, SyncConfig } from "@/utils/typing"
 
 /** 右侧主区视图模式 */
 type ViewMode = "list" | "trash"
@@ -52,6 +53,12 @@ const Options: React.FC = () => {
   const [addTitle, setAddTitle] = useState("")
   const [addCategory, setAddCategory] = useState(ALL_CATEGORIE)
 
+  // 同步配置状态
+  const [syncConfig, setSyncConfig] = useState<SyncConfig>({ apiUrl: "", apiSecret: "" })
+  const [isSyncPanelOpen, setIsSyncPanelOpen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+
   useEffect(() => {
     const syncState = async () => {
       const nextState = await loadReadLaterState()
@@ -65,6 +72,11 @@ const Options: React.FC = () => {
     }
 
     syncState()
+
+    // 加载同步配置
+    getSyncConfig().then((cfg) => {
+      if (cfg) setSyncConfig(cfg)
+    }).catch((err) => console.error("加载同步配置失败:", err))
 
     const handleStorageChange = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
       if (areaName !== "local") {
@@ -83,6 +95,7 @@ const Options: React.FC = () => {
     const handleClickOutside = () => {
       setIsMoveDropdownOpen(false)
       setIsAddPanelOpen(false)
+      setIsSyncPanelOpen(false)
     }
 
     chrome.storage.onChanged.addListener(handleStorageChange)
@@ -386,6 +399,40 @@ const Options: React.FC = () => {
     await persistReadingList([...testLinks, ...readingList])
   }
 
+  /** 保存同步配置 */
+  const handleSaveSyncConfig = async () => {
+    await saveSyncConfig(syncConfig)
+    setSyncStatus({ msg: "配置已保存", ok: true })
+    setTimeout(() => setSyncStatus(null), 2000)
+  }
+
+  /** 手动推送到云端 */
+  const handlePushToCloud = async () => {
+    setIsSyncing(true)
+    setSyncStatus(null)
+    const result = await pushToCloud()
+    setIsSyncing(false)
+    if (result.ok) {
+      setSyncStatus({ msg: result.skipped ? "云端数据较新，已跳过推送" : "推送成功", ok: true })
+    } else {
+      setSyncStatus({ msg: `推送失败: ${result.error}`, ok: false })
+    }
+  }
+
+  /** 从云端拉取并覆盖本地 */
+  const handlePullFromCloud = async () => {
+    if (!window.confirm("从云端拉取数据将覆盖本地所有数据，确定继续吗？")) return
+    setIsSyncing(true)
+    setSyncStatus(null)
+    const result = await pullFromCloud()
+    setIsSyncing(false)
+    if (result.ok) {
+      setSyncStatus({ msg: "拉取成功，本地数据已更新", ok: true })
+    } else {
+      setSyncStatus({ msg: `拉取失败: ${result.error}`, ok: false })
+    }
+  }
+
   return (
     <div className="options-container">
       <div className="options-header">
@@ -402,6 +449,66 @@ const Options: React.FC = () => {
             <i className="ri-test-tube-line"></i>
             添加测试数据
           </button>
+          <div className="sync-btn-wrapper" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="sync-btn"
+              title="云同步设置"
+              onClick={() => setIsSyncPanelOpen((v) => !v)}
+            >
+              <i className="ri-cloud-line"></i>
+              云同步
+            </button>
+            {isSyncPanelOpen && (
+              <div className="sync-panel">
+                <div className="sync-panel-title">
+                  <i className="ri-cloud-line"></i> 云同步设置
+                </div>
+                <div className="panel-field">
+                  <label>API 地址</label>
+                  <input
+                    type="url"
+                    placeholder="https://xxx.pages.dev"
+                    value={syncConfig.apiUrl}
+                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiUrl: e.target.value }))}
+                  />
+                </div>
+                <div className="panel-field">
+                  <label>API 密钥</label>
+                  <input
+                    type="password"
+                    placeholder="与服务端 API_SECRET 一致"
+                    value={syncConfig.apiSecret}
+                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiSecret: e.target.value }))}
+                  />
+                </div>
+                {syncStatus && (
+                  <div className={`sync-status ${syncStatus.ok ? "sync-status-ok" : "sync-status-err"}`}>
+                    {syncStatus.msg}
+                  </div>
+                )}
+                <div className="panel-actions">
+                  <button className="panel-cancel-btn" onClick={() => void handleSaveSyncConfig()}>
+                    保存配置
+                  </button>
+                  <button
+                    className="panel-submit-btn"
+                    onClick={() => void handlePullFromCloud()}
+                    disabled={isSyncing}
+                  >
+                    <i className="ri-download-cloud-line"></i>拉取
+                  </button>
+                  <button
+                    className="panel-submit-btn"
+                    onClick={() => void handlePushToCloud()}
+                    disabled={isSyncing}
+                  >
+                    <i className={isSyncing ? "ri-loader-4-line" : "ri-upload-cloud-line"}></i>
+                    {isSyncing ? "同步中…" : "推送"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

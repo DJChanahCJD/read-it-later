@@ -745,3 +745,76 @@ body {
   color: var(--primary);
 }
 
+/* ── 云同步按钮 & 面板 ── */
+.sync-btn-wrapper {
+  position: relative;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.sync-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.sync-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border);
+  z-index: 20;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sync-status {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--border-radius);
+}
+
+.sync-status-ok {
+  background: rgba(56, 178, 172, 0.1);
+  color: var(--primary);
+}
+
+.sync-status-err {
+  background: rgba(229, 62, 62, 0.08);
+  color: var(--danger);
+}
+
+.panel-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+
