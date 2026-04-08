@@ -25,7 +25,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content.styles.css",
         "icon-128.png"
       ],
       "matches": []

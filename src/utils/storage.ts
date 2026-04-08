@@ -9,7 +9,6 @@ export const KEYS = {
   readLaterLinks: "readLaterLinks",
   readLaterCategories: "readLaterCategories",
   lastSelectedCategory: "lastSelectedCategory",
-  readingProgress: "readingProgress",
   readLaterTrash: "readLaterTrash",
 } as const
 
@@ -22,7 +21,6 @@ type StorageShape = {
   [KEYS.readLaterLinks]?: unknown
   [KEYS.readLaterCategories]?: unknown
   [KEYS.lastSelectedCategory]?: unknown
-  [KEYS.readingProgress]?: unknown
   [KEYS.readLaterTrash]?: unknown
 }
 

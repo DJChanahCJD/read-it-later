@@ -81,22 +81,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 function updateExtensionIcon(exists : boolean, tabId? : number) {
   try {
-    // const iconPaths = {
-    //   active: {
-    //     "128": "icon-128-active.png"
-    //   },
-    //   default: {
-    //     "128": "icon-128.png"
-    //   }
-    // };
-    // // const iconPath = exists? iconPaths.active : iconPaths.default;
-    // chrome.action.setIcon({ path: iconPath, tabId }, () => {
-    //   if (chrome.runtime.lastError) {
-    //     console.error("设置图标失败:", chrome.runtime.lastError);
-    //   }
-    // });
     chrome.action.setBadgeText({ text: exists ? '1' : '' });
-    console.log("3. Updated extension icon:", exists);
+    // console.log("3. Updated extension icon:", exists);
     
   } catch (error) {
     console.error('图标更新失败:', error);
@@ -137,7 +123,7 @@ const handleAddOrRemoveLink = (url :Tab['url'], title: Tab['title'] , tab: Tab |
 // 更新右键菜单
 function updateContextMenuTitle(id: string, title: string) {
   chrome.contextMenus.update(id, { title: title })
-  console.log("2. Updated context menu title:\n" + title)
+  // console.log("2. Updated context menu title:\n" + title)
 }
 
 /**
@@ -150,12 +136,12 @@ async function handleTabUpdate(tabId: number) {
     const tab = await chrome.tabs.get(tabId);
     if (!tab?.url) return;
 
-    console.log("1. Processing tab:", tab.url);
+    // console.log("1. Processing tab:", tab.url);
     
     const { readingList } = await loadReadLaterState()
     const exists = readingList.some((link) => link.url === tab.url)
     
-    // 更新右键菜单 - 修复此处传参方式
+    // 更新右键菜单
     const title = exists ? REMOVE_FROM_TEXT : ADD_TO_TEXT;
     updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, title); // 直接传入title字符串
     
@@ -168,54 +154,6 @@ async function handleTabUpdate(tabId: number) {
 
 // 监听标签页切换事件
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  // 获取前一个标签页ID
-  const tabs = await chrome.tabs.query({});
-  const previousTab = tabs.find(tab => tab.id !== activeInfo.tabId && tab.active);
-  
-  // 如果存在前一个标签页，保存其阅读进度
-  if (previousTab?.id) {
-    try {
-      await chrome.tabs.sendMessage(previousTab.id, { type: MESSAGE_TYPE.SAVE_READING_PROGRESS });
-      console.log('保存阅读进度:', previousTab.id);
-    } catch (error) {
-      console.log('保存阅读进度失败:', error);
-    }
-  }
-  
   handleTabUpdate(activeInfo.tabId);
 });
 
-// 监听标签页更新事件
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete") {
-    handleTabUpdate(tabId);
-
-    // 在 background.js 中检查
-    if (tab.id) {
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          return !!window.myExtensionLoaded;
-        },
-      }, (results) => {
-        if (results && results[0]) {
-          console.log("注入状态:", results[0].result);
-        }
-      });
-    }
-    // 等待页面加载完成后再尝试恢复阅读进度
-    setTimeout(() => {
-      try {
-        chrome.tabs.sendMessage(tabId, { type: MESSAGE_TYPE.RESTORE_READING_PROGRESS });
-        console.log('恢复阅读进度:', tabId);
-      } catch (error) {
-        console.log('恢复阅读进度失败:', error);
-      }
-    }, 500);
-  }
-});
-
-// chrome.runtime.onMessageExternal.addListener( (request, sender, sendResponse) => {
-//   console.log("Received message from " + sender + ": ", request);
-//   sendResponse({ received: true }); //respond however you like
-// });

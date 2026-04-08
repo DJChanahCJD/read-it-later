@@ -45,7 +45,6 @@ interface ReadingItem {
 - `readLaterLinks`
 - `readLaterCategories`
 - `lastSelectedCategory`
-- `readingProgress`
 
 ## 权限说明
 - `storage`：保存阅读列表和分类
@@ -89,7 +88,6 @@ GitHub Actions 会在推送 `main` 或 `v*` 标签时执行构建，并直接上
 - 未引入后端服务或远程数据库
 
 ## 📅 TODO
-- [ ] 阅读进度追踪功能（通过Content.js`注入）
 - [ ] 自动同步存储（cloudflare kv？）
 - [ ] 回收站功能（保留前100条记录）
 - [ ] 分类归档功能（已归档的分类将不再popup中显示）

@@ -10,8 +10,6 @@ export const EMPTY_STATE_TEXT = "空空如也..."
 
 export const MESSAGE_TYPE = {
     UPDATE_CONTEXT_MENU: 'updateContextMenu',
-    SAVE_READING_PROGRESS: 'saveReadingProgress',
-    RESTORE_READING_PROGRESS: 'restoreReadingProgress'
 }
 export const CONTEXT_MENU_ACTION = {
     ADD: 'add',
