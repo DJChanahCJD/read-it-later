@@ -14,6 +14,7 @@ import {
   getRandomDate,
 } from "@/utils/common"
 import {
+  createReadingItem,
   filterReadingList,
   loadReadLaterState,
   replaceReadingItem,
@@ -37,6 +38,10 @@ const Options: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [editingUrl, setEditingUrl] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
+  const [isAddPanelOpen, setIsAddPanelOpen] = useState(false)
+  const [addUrl, setAddUrl] = useState("")
+  const [addTitle, setAddTitle] = useState("")
+  const [addCategory, setAddCategory] = useState(ALL_CATEGORIE)
 
   useEffect(() => {
     const syncState = async () => {
@@ -62,6 +67,7 @@ const Options: React.FC = () => {
 
     const handleClickOutside = () => {
       setIsMoveDropdownOpen(false)
+      setIsAddPanelOpen(false)
     }
 
     chrome.storage.onChanged.addListener(handleStorageChange)
@@ -245,6 +251,41 @@ const Options: React.FC = () => {
     await persistReadingList(nextList)
   }
 
+  /** 打开手动添加面板，重置表单并默认当前选中分类 */
+  const toggleAddPanel = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (!isAddPanelOpen) {
+      setAddUrl("")
+      setAddTitle("")
+      setAddCategory(selectedCategory === ALL_CATEGORIE ? ALL_CATEGORIE : selectedCategory)
+    }
+    setIsAddPanelOpen((prev) => !prev)
+  }
+
+  /** 手动添加链接：URL 校验 → 去重 → 写入 → 关闭面板 */
+  const handleAddLink = async () => {
+    const url = addUrl.trim()
+    if (!url) {
+      alert("请输入链接地址")
+      return
+    }
+    try {
+      new URL(url)
+    } catch {
+      alert("请输入合法的链接地址（需包含 http:// 或 https://）")
+      return
+    }
+    if (readingList.some((item) => item.url === url)) {
+      alert("该链接已存在于阅读列表中")
+      return
+    }
+    const title = addTitle.trim() || url
+    const category = addCategory === ALL_CATEGORIE ? ALL_CATEGORIE : addCategory
+    const newItem = createReadingItem(url, title, category)
+    await persistReadingList([newItem, ...readingList])
+    setIsAddPanelOpen(false)
+  }
+
   const handleAddTestData = async () => {
     const testLinks = Array.from({ length: TEST_LINKS_LENGTH }, (_, index) => {
       const randomDate = getRandomDate()
@@ -362,6 +403,51 @@ const Options: React.FC = () => {
             <div className="search-box">
               <i className="ri-search-line"></i>
               <input type="text" placeholder="搜索链接..." value={searchTerm} onChange={handleSearch} />
+            </div>
+
+            <div className="add-link-wrapper" onClick={(e) => e.stopPropagation()}>
+              <button className="add-link-btn" onClick={toggleAddPanel} title="手动添加链接">
+                <i className="ri-add-circle-line"></i>
+              </button>
+              {isAddPanelOpen && (
+                <div className="add-link-panel">
+                  <div className="panel-field">
+                    <label>链接地址 <span className="required">*</span></label>
+                    <input
+                      type="url"
+                      placeholder="https://example.com"
+                      value={addUrl}
+                      onChange={(e) => setAddUrl(e.target.value)}
+                      onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="panel-field">
+                    <label>标题（选填）</label>
+                    <input
+                      type="text"
+                      placeholder="留空则使用链接地址"
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                    />
+                  </div>
+                  <div className="panel-field">
+                    <label>分类</label>
+                    <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="panel-actions">
+                    <button className="panel-cancel-btn" onClick={() => setIsAddPanelOpen(false)}>取消</button>
+                    <button className="panel-submit-btn" onClick={() => void handleAddLink()}>
+                      <i className="ri-add-line"></i>添加
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="links-actions">
