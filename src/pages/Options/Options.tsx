@@ -54,7 +54,7 @@ const Options: React.FC = () => {
   const [addCategory, setAddCategory] = useState(ALL_CATEGORIE)
 
   // 同步配置状态
-  const [syncConfig, setSyncConfig] = useState<SyncConfig>({ apiUrl: "", apiSecret: "" })
+  const [syncConfig, setSyncConfig] = useState<SyncConfig>({ baseUrl: "", apiKey: "" })
   const [isSyncPanelOpen, setIsSyncPanelOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState<{ msg: string; ok: boolean } | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -467,18 +467,18 @@ const Options: React.FC = () => {
                   <label>API 地址</label>
                   <input
                     type="url"
-                    placeholder="https://xxx.pages.dev"
-                    value={syncConfig.apiUrl}
-                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiUrl: e.target.value }))}
+                    placeholder="https://your-api.example.com"
+                    value={syncConfig.baseUrl}
+                    onChange={(e) => setSyncConfig((c) => ({ ...c, baseUrl: e.target.value }))}
                   />
                 </div>
                 <div className="panel-field">
                   <label>API 密钥</label>
                   <input
                     type="password"
-                    placeholder="与服务端 API_SECRET 一致"
-                    value={syncConfig.apiSecret}
-                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiSecret: e.target.value }))}
+                    placeholder="ksk_xxx"
+                    value={syncConfig.apiKey}
+                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiKey: e.target.value }))}
                   />
                 </div>
                 {syncStatus && (

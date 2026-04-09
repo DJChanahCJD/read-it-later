@@ -1,13 +1,15 @@
 /**
- * 云同步服务 - 负责与 Cloudflare Pages Function API 通信
+ * 云同步服务 - 基于 @djchan/kv-sync SDK
  *
  * 提供：
- *   - pushToCloud：将本地数据全量上传到 KV
- *   - pullFromCloud：从 KV 拉取数据并写入本地存储
+ *   - pushToCloud：mergeAndSync，本地 updatedAt 较新则覆盖远端，否则跳过
+ *   - pullFromCloud：从 KV 拉取快照并写入本地存储
  *   - getSyncConfig / saveSyncConfig：读写同步配置
  */
 
+import { createKvSyncClient } from "@djchan/kv-sync"
 import { KEYS, storageGet, storageSet } from "@/utils/storage"
+import { APP_ID } from "@/utils/typing"
 import type { Category, ReadingItem, SyncConfig, SyncPayload, SyncResult } from "@/utils/typing"
 
 const SYNC_CONFIG_KEY = "readLaterSyncConfig"
@@ -32,74 +34,77 @@ export async function saveSyncConfig(config: SyncConfig): Promise<void> {
 // ──────────────────────────────────────────────
 
 /**
- * 将本地数据全量推送到 Cloudflare KV（last-write-wins）
+ * 将本地数据推送到 Cloudflare KV
+ * 使用 mergeAndSync：先拉远端，本地 updatedAt 较新则覆盖，否则跳过
  */
 export async function pushToCloud(): Promise<SyncResult> {
   const config = await getSyncConfig()
-  if (!config?.apiUrl || !config?.apiSecret) {
+  if (!config?.baseUrl || !config?.apiKey) {
     return { ok: false, error: "未配置同步地址或密钥" }
   }
 
-  const [links, categories, trash] = await Promise.all([
+  const [linksRes, categoriesRes, trashRes] = await Promise.all([
     storageGet<{ [KEYS.readLaterLinks]: ReadingItem[] }>([KEYS.readLaterLinks]),
     storageGet<{ [KEYS.readLaterCategories]: Category[] }>([KEYS.readLaterCategories]),
     storageGet<{ [KEYS.readLaterTrash]: ReadingItem[] }>([KEYS.readLaterTrash]),
   ])
 
-  const payload: SyncPayload = {
+  const localPayload: SyncPayload = {
     updatedAt: Date.now(),
-    links: links[KEYS.readLaterLinks] ?? [],
-    categories: categories[KEYS.readLaterCategories] ?? [],
-    trash: trash[KEYS.readLaterTrash] ?? [],
+    links: linksRes[KEYS.readLaterLinks] ?? [],
+    categories: categoriesRes[KEYS.readLaterCategories] ?? [],
+    trash: trashRes[KEYS.readLaterTrash] ?? [],
   }
 
+  const client = createKvSyncClient({
+    baseUrl: config.baseUrl,
+    appId: APP_ID,
+    apiKey: config.apiKey,
+  })
+
   try {
-    const res = await fetch(`${config.apiUrl.replace(/\/$/, "")}/api/sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Secret": config.apiSecret,
+    let skipped = false
+
+    await client.mergeAndSync({
+      merge(remote) {
+        const remotePayload = remote as SyncPayload | null
+        // 远端存在且 updatedAt 更新，则保留远端（跳过本地写回）
+        if (remotePayload && remotePayload.updatedAt >= localPayload.updatedAt) {
+          skipped = true
+          return remotePayload
+        }
+        return localPayload
       },
-      body: JSON.stringify(payload),
     })
 
-    if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` }
-    }
-
-    const json = (await res.json()) as { ok?: boolean; skipped?: boolean; error?: string }
-    if (json.error) return { ok: false, error: json.error }
-    return { ok: true, skipped: json.skipped }
+    return { ok: true, skipped }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
 /**
- * 从 Cloudflare KV 拉取数据并覆盖本地存储
+ * 从 Cloudflare KV 拉取快照并覆盖本地存储
  */
 export async function pullFromCloud(): Promise<SyncResult> {
   const config = await getSyncConfig()
-  if (!config?.apiUrl || !config?.apiSecret) {
+  if (!config?.baseUrl || !config?.apiKey) {
     return { ok: false, error: "未配置同步地址或密钥" }
   }
 
+  const client = createKvSyncClient({
+    baseUrl: config.baseUrl,
+    appId: APP_ID,
+    apiKey: config.apiKey,
+  })
+
   try {
-    const res = await fetch(`${config.apiUrl.replace(/\/$/, "")}/api/sync`, {
-      method: "GET",
-      headers: { "X-API-Secret": config.apiSecret },
-    })
-
-    if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` }
-    }
-
-    const json = (await res.json()) as { data: SyncPayload | null }
-    if (!json.data) {
+    const result = await client.get<SyncPayload>()
+    if (!result) {
       return { ok: false, error: "云端暂无数据" }
     }
 
-    const { links, categories, trash } = json.data
+    const { links, categories, trash } = result.value
     await storageSet({
       [KEYS.readLaterLinks]: links,
       [KEYS.readLaterCategories]: categories,

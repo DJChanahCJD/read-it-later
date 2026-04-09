@@ -1,3 +1,5 @@
+export const APP_ID = "read-it-later"
+
 export interface ReadingItem {
   url: string
   title: string
@@ -21,10 +23,10 @@ export type Tab = chrome.tabs.Tab
 
 /** 云同步配置，存储在 chrome.storage.local */
 export interface SyncConfig {
-  /** Cloudflare Pages 部署 URL，例如 https://xxx.pages.dev */
-  apiUrl: string
-  /** API 密钥，对应服务端 API_SECRET 环境变量 */
-  apiSecret: string
+  /** kv-sync 服务端 baseUrl，例如 https://your-api.example.com */
+  baseUrl: string
+  /** API 密钥 */
+  apiKey: string
 }
 
 /** 同步数据的完整结构（KV 存储格式） */
