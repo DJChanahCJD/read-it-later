@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "name": "稍后阅读 - Read Later",
+  "version": "1.0.0",
   "description": "一个简单的稍后阅读插件，支持右键添加链接和拖拽排序 A simple later reading plugin that supports right-clicking to add links and dragging to sort",
   "options_page": "options.html",
   "background": { "service_worker": "background.bundle.js" },
