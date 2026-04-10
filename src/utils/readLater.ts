@@ -34,6 +34,7 @@ export const normalizeReadingList = (items: Partial<ReadingItem>[] = []) =>
 /**
  * 将存储中的分类数据（旧版 string[] 或新版 Category[]）统一规范化为 Category[]
  * 旧版数据自动迁移，不丢失任何分类
+ * 注意：「全部」作为虚拟分类保留在返回结果中，供 UI 层使用
  */
 export const normalizeCategories = (raw?: unknown[]): Category[] => {
   const items = raw?.filter(Boolean) || []

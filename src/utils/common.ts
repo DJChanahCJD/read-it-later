@@ -4,7 +4,7 @@ export const defaultCategories = [
     ALL_CATEGORIE,
 ] as string[]
 export const MAX_CATEGORIE_LENGTH = 16
-export const TEST_LINKS_LENGTH = 100
+export const TEST_LINKS_LENGTH = 1
 export const EMPTY_STATE_TEXT = "空空如也..."
 
 

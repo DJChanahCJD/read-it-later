@@ -9,12 +9,17 @@
 - 快捷键添加当前页面，默认 `Alt+S`
 - Popup 中搜索、拖拽排序、分类切换
 - Options 页中批量删除、批量移动、分类管理
+- 云同步支持（Cloudflare KV）
+- 回收站功能（删除的条目可恢复）
+- 分类归档管理
 
 ## 技术栈
 - Chrome Extension Manifest V3
 - React 18
 - TypeScript
 - Webpack 5
+- @djchan/kv-sync（云同步 SDK）
+- RemixIcon（图标库）
 
 ## 项目结构
 ```text
@@ -38,6 +43,17 @@ interface ReadingItem {
   title: string
   addedAt: string
   category: string
+  position?: ReadingPosition
+}
+
+interface ReadingPosition {
+  url: string
+  position: number
+}
+
+interface Category {
+  name: string
+  isArchived: boolean
 }
 ```
 
@@ -45,6 +61,7 @@ interface ReadingItem {
 - `readLaterLinks`
 - `readLaterCategories`
 - `lastSelectedCategory`
+- `readLaterTrash`
 
 ## 权限说明
 - `storage`：保存阅读列表和分类
@@ -53,6 +70,16 @@ interface ReadingItem {
 - `activeTab`：操作当前活动标签页
 - `scripting`：向页面执行轻量脚本检测
 - `commands`：支持快捷键添加
+
+## 云同步
+项目支持云同步功能，基于 Cloudflare KV 存储：
+
+- 使用 [@djchan/kv-sync](https://www.npmjs.com/package/@djchan/kv-sync) SDK 实现
+- 支持 push（推送到云端）和 pull（从云端拉取）两种同步方式
+- 自动合并冲突：基于 `updatedAt` 时间戳判断，保留最新数据
+- 需要配置云端服务地址和 API 密钥
+
+详细实现见 `src/utils/syncService.ts`
 
 ## 开发
 ```bash
@@ -71,6 +98,7 @@ Chrome 加载方式：
 npm run build
 npm run lint
 npm run typecheck
+npm run test
 npm run format
 ```
 
@@ -78,19 +106,8 @@ npm run format
 - `build` 会输出 `build/`，并额外在 `zip/` 生成发布压缩包
 - `lint` 检查 `src` 与 `utils` 目录
 - `typecheck` 运行 TypeScript 静态检查
+- `test` 运行 vitest 单元测试
 
-## 发布
-GitHub Actions 会在推送 `main` 或 `v*` 标签时执行构建，并直接上传 `zip/` 中的产物作为 Release 附件。
-
-## 当前边界
-- 当前版本只使用本地存储，不包含云同步
-- 阅读进度能力仍处于预留阶段，尚未完整启用
-- 未引入后端服务或远程数据库
-
-## 📅 TODO
-- [ ] 自动同步存储（cloudflare kv？）
-- [ ] 回收站功能（保留前100条记录）
-- [ ] 分类归档功能（已归档的分类将不再popup中显示）
 
 
 ## 🏞️ 截图

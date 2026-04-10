@@ -33,6 +33,9 @@ import type { Category, ReadingItem, SyncConfig } from "@/utils/typing"
 /** 右侧主区视图模式 */
 type ViewMode = "list" | "trash"
 
+const EXTENSION_GITHUB_URL = "https://github.com/DJChanahCJD/read-it-later"
+const SYNC_SERVICE_GITHUB_URL = "https://github.com/DJChanahCJD/kv-sync"
+
 const Options: React.FC = () => {
   const [readingList, setReadingList] = useState<ReadingItem[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -115,6 +118,11 @@ const Options: React.FC = () => {
   const allCategoryNames = [ALL_CATEGORIE, ...categories.map((c) => c.name)]
   /** 未归档的分类 name 列表（用于 sidebar 选中判断） */
   const activeCategoryNames = [ALL_CATEGORIE, ...activeCategories.map((c) => c.name)]
+  const totalLinks = readingList.length
+  const selectedCount = selectedItems.length
+  const totalCategories = activeCategories.length
+  const archivedCount = archivedCategories.length
+  const trashCount = trash.length
 
   const filteredList = sortReadingListByDate(
     filterReadingList(readingList, searchTerm, selectedCategory),
@@ -435,79 +443,133 @@ const Options: React.FC = () => {
 
   return (
     <div className="options-container">
+      <a
+        href={EXTENSION_GITHUB_URL}
+        className="github-corner"
+        aria-label="View source on GitHub"
+      >
+        <svg
+          width="80"
+          height="80"
+          viewBox="0 0 250 250"
+          style={{ fill: "#64CEAA", color: "#fff", position: "absolute", top: 0, border: 0, right: 0 }}
+          aria-hidden="true"
+        >
+          <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z" />
+          <path
+            d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2"
+            fill="currentColor"
+            style={{ transformOrigin: "130px 106px" }}
+            className="octo-arm"
+          />
+          <path
+            d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z"
+            fill="currentColor"
+            className="octo-body"
+          />
+        </svg>
+      </a>
+      <style>{`
+        .github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}
+        @keyframes octocat-wave{
+          0%,100%{transform:rotate(0)}
+          20%,60%{transform:rotate(-25deg)}
+          40%,80%{transform:rotate(10deg)}
+        }
+        @media (max-width:500px){
+          .github-corner:hover .octo-arm{animation:none}
+          .github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}
+        }
+      `}</style>
       <div className="options-header">
         <h1>稍后阅读 - 设置</h1>
-        <div className="header-actions">
-          <button
-            className="shortcut-btn"
-            onClick={() => chrome.tabs.create({ url: getBrowserShortcutSettingUrl() })}
-          >
-            <i className="ri-keyboard-line"></i>
-            设置快捷键
-          </button>
-          <button className="test-btn" onClick={() => void handleAddTestData()} title="添加测试数据">
-            <i className="ri-test-tube-line"></i>
-            添加测试数据
-          </button>
-          <div className="sync-btn-wrapper" onClick={(e) => e.stopPropagation()}>
+          <div className="header-actions">
             <button
-              className="sync-btn"
-              title="云同步设置"
-              onClick={() => setIsSyncPanelOpen((v) => !v)}
+              className="shortcut-btn"
+              onClick={() => chrome.tabs.create({ url: getBrowserShortcutSettingUrl() })}
             >
-              <i className="ri-cloud-line"></i>
-              云同步
+              <i className="ri-keyboard-line"></i>
+              设置快捷键
             </button>
-            {isSyncPanelOpen && (
-              <div className="sync-panel">
-                <div className="sync-panel-title">
-                  <i className="ri-cloud-line"></i> 云同步设置
-                </div>
-                <div className="panel-field">
-                  <label>API 地址</label>
-                  <input
-                    type="url"
-                    placeholder="https://your-api.example.com"
-                    value={syncConfig.baseUrl}
-                    onChange={(e) => setSyncConfig((c) => ({ ...c, baseUrl: e.target.value }))}
-                  />
-                </div>
-                <div className="panel-field">
-                  <label>API 密钥</label>
-                  <input
-                    type="password"
-                    placeholder="ksk_xxx"
-                    value={syncConfig.apiKey}
-                    onChange={(e) => setSyncConfig((c) => ({ ...c, apiKey: e.target.value }))}
-                  />
-                </div>
-                {syncStatus && (
-                  <div className={`sync-status ${syncStatus.ok ? "sync-status-ok" : "sync-status-err"}`}>
-                    {syncStatus.msg}
+            {/* <button className="test-btn" onClick={() => void handleAddTestData()} title="添加测试数据">
+              <i className="ri-test-tube-line"></i>
+              添加测试数据
+            </button> */}
+            <div className="sync-btn-wrapper" onClick={(e) => e.stopPropagation()}>
+              <button
+                className={`sync-btn ${isSyncPanelOpen ? "active" : ""}`}
+                title="云同步设置"
+                onClick={() => setIsSyncPanelOpen((v) => !v)}
+              >
+                <i className="ri-cloud-line"></i>
+                云同步
+              </button>
+              {isSyncPanelOpen && (
+                <div className="sync-panel">
+                  <div className="sync-panel-title">
+                    <div>
+                      <div className="sync-panel-heading">
+                        <i className="ri-cloud-line"></i> 云同步设置
+                      </div>
+                      <p className="sync-panel-description">
+                        连接你的  <a
+                      href={SYNC_SERVICE_GITHUB_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="sync-repo-link"
+                    >
+                      <i className="ri-github-line"></i>
+                      kv-sync
+                    </a> 服务。
+                      </p>
+                    </div>
+
                   </div>
-                )}
-                <div className="panel-actions">
-                  <button className="panel-cancel-btn" onClick={() => void handleSaveSyncConfig()}>
-                    保存配置
-                  </button>
-                  <button
-                    className="panel-submit-btn"
-                    onClick={() => void handlePullFromCloud()}
-                    disabled={isSyncing}
-                  >
-                    <i className="ri-download-cloud-line"></i>拉取
-                  </button>
-                  <button
-                    className="panel-submit-btn"
-                    onClick={() => void handlePushToCloud()}
-                    disabled={isSyncing}
-                  >
-                    <i className={isSyncing ? "ri-loader-4-line" : "ri-upload-cloud-line"}></i>
-                    {isSyncing ? "同步中…" : "推送"}
-                  </button>
+                  <div className="panel-field">
+                    <label>API 地址</label>
+                    <input
+                      type="url"
+                      placeholder="https://your-api.example.com"
+                      value={syncConfig.baseUrl}
+                      onChange={(e) => setSyncConfig((c) => ({ ...c, baseUrl: e.target.value }))}
+                    />
+                  </div>
+                  <div className="panel-field">
+                    <label>API 密钥</label>
+                    <input
+                      type="password"
+                      placeholder="ksk_xxx"
+                      value={syncConfig.apiKey}
+                      onChange={(e) => setSyncConfig((c) => ({ ...c, apiKey: e.target.value }))}
+                    />
+                  </div>
+                  {syncStatus && (
+                    <div className={`sync-status ${syncStatus.ok ? "sync-status-ok" : "sync-status-err"}`}>
+                      {syncStatus.msg}
+                    </div>
+                  )}
+                  <div className="panel-actions">
+                    <button className="panel-cancel-btn" onClick={() => void handleSaveSyncConfig()}>
+                      保存配置
+                    </button>
+                    <button
+                      className="panel-submit-btn"
+                      onClick={() => void handlePullFromCloud()}
+                      disabled={isSyncing}
+                    >
+                      <i className="ri-download-cloud-line"></i>拉取
+                    </button>
+                    <button
+                      className="panel-submit-btn"
+                      onClick={() => void handlePushToCloud()}
+                      disabled={isSyncing}
+                    >
+                      <i className={isSyncing ? "ri-loader-4-line" : "ri-upload-cloud-line"}></i>
+                      {isSyncing ? "同步中…" : "推送"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         </div>
       </div>
@@ -735,54 +797,54 @@ const Options: React.FC = () => {
             <>
               <div className="links-header">
                 <div className="search-box">
-                  <i className="ri-search-line"></i>
-                  <input type="text" placeholder="搜索链接..." value={searchTerm} onChange={handleSearch} />
+                    <i className="ri-search-line"></i>
+                    <input type="text" placeholder="搜索链接..." value={searchTerm} onChange={handleSearch} />
                 </div>
 
-                <div className="add-link-wrapper" onClick={(e) => e.stopPropagation()}>
-                  <button className="add-link-btn" onClick={toggleAddPanel} title="手动添加链接">
-                    <i className="ri-add-circle-line"></i>
-                  </button>
-                  {isAddPanelOpen && (
-                    <div className="add-link-panel">
-                      <div className="panel-field">
-                        <label>链接地址 <span className="required">*</span></label>
-                        <input
-                          type="url"
-                          placeholder="https://example.com"
-                          value={addUrl}
-                          onChange={(e) => setAddUrl(e.target.value)}
-                          onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
-                          autoFocus
-                        />
+                  <div className="add-link-wrapper" onClick={(e) => e.stopPropagation()}>
+                    <button className="add-link-btn" onClick={toggleAddPanel} title="手动添加链接">
+                      <i className="ri-add-circle-line"></i>
+                    </button>
+                    {isAddPanelOpen && (
+                      <div className="add-link-panel">
+                        <div className="panel-field">
+                          <label>链接地址 <span className="required">*</span></label>
+                          <input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={addUrl}
+                            onChange={(e) => setAddUrl(e.target.value)}
+                            onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="panel-field">
+                          <label>标题（选填）</label>
+                          <input
+                            type="text"
+                            placeholder="留空则使用链接地址"
+                            value={addTitle}
+                            onChange={(e) => setAddTitle(e.target.value)}
+                            onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
+                          />
+                        </div>
+                        <div className="panel-field">
+                          <label>分类</label>
+                          <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
+                            {allCategoryNames.map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="panel-actions">
+                          <button className="panel-cancel-btn" onClick={() => setIsAddPanelOpen(false)}>取消</button>
+                          <button className="panel-submit-btn" onClick={() => void handleAddLink()}>
+                            <i className="ri-add-line"></i>添加
+                          </button>
+                        </div>
                       </div>
-                      <div className="panel-field">
-                        <label>标题（选填）</label>
-                        <input
-                          type="text"
-                          placeholder="留空则使用链接地址"
-                          value={addTitle}
-                          onChange={(e) => setAddTitle(e.target.value)}
-                          onKeyUp={(e) => e.key === "Enter" && void handleAddLink()}
-                        />
-                      </div>
-                      <div className="panel-field">
-                        <label>分类</label>
-                        <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)}>
-                          {allCategoryNames.map((cat) => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="panel-actions">
-                        <button className="panel-cancel-btn" onClick={() => setIsAddPanelOpen(false)}>取消</button>
-                        <button className="panel-submit-btn" onClick={() => void handleAddLink()}>
-                          <i className="ri-add-line"></i>添加
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
                 <div className="links-actions">
                   {selectedItems.length > 0 && (

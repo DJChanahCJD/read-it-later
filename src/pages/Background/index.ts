@@ -49,7 +49,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // 监听快捷键命令
 chrome.commands.onCommand.addListener((command) => {
   if (command === ADD_TO_READLATER_MENU_ID) {
-    console.log("Shortcut command triggered")
+    // console.log("Shortcut command triggered")
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const currentTab = tabs[0] as chrome.tabs.Tab
       if (currentTab.url) {
@@ -61,7 +61,7 @@ chrome.commands.onCommand.addListener((command) => {
 
 // 添加消息监听器
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Received message:", request)
+  // console.log("Received message:", request)
   if (request.type === MESSAGE_TYPE.UPDATE_CONTEXT_MENU) {
     if (request.action === CONTEXT_MENU_ACTION.ADD) {
       updateContextMenuTitle(ADD_TO_READLATER_MENU_ID, REMOVE_FROM_TEXT)

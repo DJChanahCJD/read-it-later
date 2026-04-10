@@ -1,6 +1,5 @@
 import {
   ALL_CATEGORIE,
-  defaultCategories,
 } from "@/utils/common"
 import {
   filterReadingList,
@@ -57,11 +56,10 @@ describe("readLater helpers", () => {
   })
 
   it(`keeps ${ALL_CATEGORIE} as the first category`, () => {
-    expect(normalizeCategories(undefined)).toEqual(defaultCategories)
+    expect(normalizeCategories(undefined)).toEqual([])
     expect(normalizeCategories(["工作", ALL_CATEGORIE, "收藏"])).toEqual([
-      ALL_CATEGORIE,
-      "工作",
-      "收藏",
+      { name: "工作", isArchived: false },
+      { name: "收藏", isArchived: false },
     ])
   })
 
@@ -136,10 +134,14 @@ describe("loadReadLaterState", () => {
           title: "https://example.com",
           addedAt: expect.any(String),
           category: ALL_CATEGORIE,
+          position: undefined,
         },
       ],
-      categories: [ALL_CATEGORIE, "工作"],
+      categories: [
+        { name: "工作", isArchived: false },
+      ],
       selectedCategory: ALL_CATEGORIE,
+      trash: [],
     })
 
     storageGetSpy.mockRestore()
